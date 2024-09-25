@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>IMAS2ToolMainWindow</class>
+ <widget class="QMainWindow" name="IMAS2ToolMainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1280</width>
+    <height>720</height>
+   </rect>
+  </property>
+  <property name="font">
+   <font>
+    <pointsize>8</pointsize>
+   </font>
+  </property>
+  <property name="windowTitle">
+   <string>IM@S2-Viewer</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <property name="sizePolicy">
+    <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+     <horstretch>0</horstretch>
+     <verstretch>0</verstretch>
+    </sizepolicy>
+   </property>
+   <layout class="QVBoxLayout" name="verticalLayout">
+    <item>
+     <widget class="QLabel" name="fileInfoLabel">
+      <property name="font">
+       <font>
+        <family>微软雅黑</family>
+        <pointsize>8</pointsize>
+       </font>
+      </property>
+      <property name="styleSheet">
+       <string notr="true"/>
+      </property>
+      <property name="text">
+       <string>No File Selected</string>
+      </property>
+      <property name="indent">
+       <number>2</number>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>1280</width>
+     <height>20</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="menuOpen">
+    <property name="title">
+     <string>Open</string>
+    </property>
+    <addaction name="actionOpen_mpc"/>
+    <addaction name="actionOpen_tsk"/>
+    <addaction name="actionOpen_nut"/>
+   </widget>
+   <widget class="QMenu" name="menuConvert">
+    <property name="title">
+     <string>Convert</string>
+    </property>
+    <widget class="QMenu" name="menuConvert_scb">
+     <property name="title">
+      <string>Convert scb</string>
+     </property>
+     <addaction name="actionscb_to_json"/>
+     <addaction name="actionjson_to_scb"/>
+    </widget>
+    <widget class="QMenu" name="menuConvert_xmb">
+     <property name="title">
+      <string>Convert xmb</string>
+     </property>
+     <addaction name="actionxmb_to_json"/>
+     <addaction name="actionjson_to_xmb"/>
+    </widget>
+    <widget class="QMenu" name="menuConvert_dds">
+     <property name="title">
+      <string>Convert dds</string>
+     </property>
+     <addaction name="actionpng_to_dxt3dds"/>
+     <addaction name="actiondxt3dds_to_png"/>
+    </widget>
+    <addaction name="menuConvert_scb"/>
+    <addaction name="menuConvert_xmb"/>
+    <addaction name="menuConvert_dds"/>
+   </widget>
+   <widget class="QMenu" name="menuSave_as">
+    <property name="title">
+     <string>Save as</string>
+    </property>
+    <addaction name="actionSave_New_File"/>
+    <addaction name="actionExtract_Files"/>
+   </widget>
+   <addaction name="menuOpen"/>
+   <addaction name="menuConvert"/>
+   <addaction name="menuSave_as"/>
+  </widget>
+  <action name="actionOpen_mpc">
+   <property name="text">
+    <string>Open mpc</string>
+   </property>
+  </action>
+  <action name="actionOpen_tsk">
+   <property name="text">
+    <string>Open tsk</string>
+   </property>
+  </action>
+  <action name="actionOpen_nut">
+   <property name="text">
+    <string>Open nut</string>
+   </property>
+  </action>
+  <action name="actionscb_to_json">
+   <property name="text">
+    <string>scb to json</string>
+   </property>
+  </action>
+  <action name="actionjson_to_scb">
+   <property name="text">
+    <string>json to scb</string>
+   </property>
+  </action>
+  <action name="actionxmb_to_json">
+   <property name="text">
+    <string>xmb to json</string>
+   </property>
+  </action>
+  <action name="actionjson_to_xmb">
+   <property name="text">
+    <string>json to xmb</string>
+   </property>
+  </action>
+  <action name="actionpng_to_dxt3dds">
+   <property name="text">
+    <string>png to dxt3dds</string>
+   </property>
+  </action>
+  <action name="actiondxt3dds_to_png">
+   <property name="text">
+    <string>dxt3dds to png</string>
+   </property>
+  </action>
+  <action name="actionSave_New_File">
+   <property name="text">
+    <string>Save New File</string>
+   </property>
+  </action>
+  <action name="actionExtract_Files">
+   <property name="text">
+    <string>Extract Files</string>
+   </property>
+  </action>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

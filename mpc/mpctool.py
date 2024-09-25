@@ -83,10 +83,10 @@ def load_mpc(data):
     mpc_info= {
         "file_size":size,
         "file_nums":files,
+        "subfiles_info":mpc_file_info,
         "infostart":infostart,
         "msgstart":msgstart,
-        "datastart":datastart,
-        "subfiles_info":mpc_file_info
+        "datastart":datastart
     }
     
     return mpc_info
@@ -176,3 +176,84 @@ def replace_file(self):
             self.opened_file["meta"].update(load_mpc(self.opened_file["data"]))
             operations.fresh_tree_view(self)
             QMessageBox.information(self, "Replaced", f"File replaced successfully\n{old_file_abspath} \nhas been replaced by\n{file_path}")
+            
+
+def extract_mpc(data, output_folder = None, file_name = None, subfiles_info = None):
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+        
+    f = io.BytesIO(data)
+    # Read headers
+    pac = read_long(f)
+    unk = read_long(f)
+    size = read_long(f)
+    files = read_long(f)
+    
+    f.seek(0x30)
+    infostart = read_long(f)
+    msgstart = read_long(f)
+    datastart = read_long(f)
+    
+    f.seek(infostart)
+    
+    file_info = []
+    
+    # Read file info
+    for _ in range(files):
+        f.seek(0x8, 1)  # Skip 8 bytes
+        filesize = read_long(f)
+        fileoffset = read_long(f)
+        filenameid = read_long(f)
+        filefolderid = read_long(f)
+        f.seek(0x8, 1)  # Skip another 8 bytes
+        
+        file_info.append({
+            'filesize': filesize,
+            'fileoffset': fileoffset,
+            'filenameid': filenameid,
+            'filefolderid': filefolderid
+        })
+    
+    f.seek(msgstart)
+    
+    f.seek(0x20, 1)  # Skip 0x20 bytes
+    
+    msg = f.tell()
+    names = read_short(f)
+    f.seek(0x6, 1)  # Skip 6 bytes
+    names_array = read_short(f)
+    names_start = read_short(f)
+    
+    f.seek(msg + names_array)
+    
+    name_sizes = []
+    name_offsets = []
+    
+    # Read name sizes and offsets
+    for _ in range(names):
+        name_sizes.append(read_long(f))
+        name_offsets.append(read_long(f))
+    
+    name_strings = []
+    
+    for i in range(names):
+        f.seek(msg + names_start + name_offsets[i])
+        name_strings.append(read_string(f, name_sizes[i]))
+    for i in range(files):
+        filename = name_strings[file_info[i]['filenameid']]
+        foldername = name_strings[file_info[i]['filefolderid']]
+        folderfilename = foldername + '/' + filename
+        fileoff = file_info[i]['fileoffset'] + datastart
+        filesize = file_info[i]['filesize']
+        
+        if output_folder:
+            foldername = os.path.join(output_folder, foldername)
+            folderfilename = os.path.join(output_folder, folderfilename)
+        if not os.path.exists(foldername):
+            os.makedirs(foldername)
+        
+        with open(folderfilename, 'wb') as out_file:
+            f.seek(fileoff)
+            out_file.write(f.read(filesize))
+        with open(f"{output_folder}/{file_name}.json", 'w') as json_file:
+            json.dump(subfiles_info, json_file, indent=4, ensure_ascii=False)

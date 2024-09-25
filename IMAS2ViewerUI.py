@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file '.\IM@S2-Viewer.ui'
+# Form implementation generated from reading ui file '.\IMAS2ViewerUI.ui'
 #
 # Created by: PyQt5 UI code generator 5.15.7
 #
@@ -73,8 +73,8 @@ class Ui_IMAS2ToolMainWindow(object):
         self.actiondxt3dds_to_png.setObjectName("actiondxt3dds_to_png")
         self.actionSave_New_File = QtWidgets.QAction(IMAS2ToolMainWindow)
         self.actionSave_New_File.setObjectName("actionSave_New_File")
-        self.actionPatch_Font = QtWidgets.QAction(IMAS2ToolMainWindow)
-        self.actionPatch_Font.setObjectName("actionPatch_Font")
+        self.actionExtract_Files = QtWidgets.QAction(IMAS2ToolMainWindow)
+        self.actionExtract_Files.setObjectName("actionExtract_Files")
         self.menuOpen.addAction(self.actionOpen_mpc)
         self.menuOpen.addAction(self.actionOpen_tsk)
         self.menuOpen.addAction(self.actionOpen_nut)
@@ -88,7 +88,7 @@ class Ui_IMAS2ToolMainWindow(object):
         self.menuConvert.addAction(self.menuConvert_xmb.menuAction())
         self.menuConvert.addAction(self.menuConvert_dds.menuAction())
         self.menuSave_as.addAction(self.actionSave_New_File)
-        self.menuSave_as.addAction(self.actionPatch_Font)
+        self.menuSave_as.addAction(self.actionExtract_Files)
         self.menubar.addAction(self.menuOpen.menuAction())
         self.menubar.addAction(self.menuConvert.menuAction())
         self.menubar.addAction(self.menuSave_as.menuAction())
@@ -116,4 +116,4 @@ class Ui_IMAS2ToolMainWindow(object):
         self.actionpng_to_dxt3dds.setText(_translate("IMAS2ToolMainWindow", "png to dxt3dds"))
         self.actiondxt3dds_to_png.setText(_translate("IMAS2ToolMainWindow", "dxt3dds to png"))
         self.actionSave_New_File.setText(_translate("IMAS2ToolMainWindow", "Save New File"))
-        self.actionPatch_Font.setText(_translate("IMAS2ToolMainWindow", "Patch Font"))
+        self.actionExtract_Files.setText(_translate("IMAS2ToolMainWindow", "Extract Files"))

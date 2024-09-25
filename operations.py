@@ -19,6 +19,21 @@ def save_new_file(self):
     except Exception as e:
         QMessageBox.critical(self, "Error", f"Failed to save file: {e}")
 
+def extract_files(self):
+    try:
+        extension_name = self.opened_file['meta']['extension_name']
+        extrac_func = self.extract_funcs[extension_name]
+        directory = QFileDialog.getExistingDirectory(self, "Choose output folder", self.opened_file["meta"]["file_name_noext"])
+        if directory:
+            directory = directory + "/" + self.opened_file["meta"]["file_name_noext"]
+            extrac_func(self.opened_file["data"], directory, self.opened_file["meta"]["file_name_noext"], self.opened_file["meta"]["subfiles_info"])
+            QMessageBox.information(self, "Success", f"Files extracted to {directory}")
+        else:
+            QMessageBox.warning(self,"Error", "No directory selected.")
+    except Exception as e:
+        QMessageBox.critical(self, "Error", f"Failed to extract file: {e}")
+
+
 def select_openfile(self, extend_name="."):
     # Open file dialog and select a file
     
@@ -39,6 +54,7 @@ def select_openfile(self, extend_name="."):
             file = pathlib.Path(file_path)
             self.opened_file["meta"].update({"file_path":file_path})
             self.opened_file["meta"].update({"file_name":file.name})
+            self.opened_file["meta"].update({"file_name_noext":file.stem})
             self.opened_file["meta"].update({"extension_name":file.suffix})
             
             self.opened_file["meta"].update(load_function(self.opened_file["data"]))
