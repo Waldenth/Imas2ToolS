@@ -1,1 +1,0 @@
-pyuic5 -o .\IMAS2ViewerUI.py .\IMAS2ViewerUI.ui

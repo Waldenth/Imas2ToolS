@@ -1,1 +1,0 @@
- pyinstaller .\GUIMain.spec

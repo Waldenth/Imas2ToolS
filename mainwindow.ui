@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+  <class>MainWindow</class>
+  <widget class="QMainWindow" name="MainWindow">
+    <property name="geometry">
+      <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>1280</width>
+        <height>720</height>
+      </rect>
+    </property>
+    <property name="windowTitle">
+      <string>Imas2ToolS</string>
+    </property>
+    <property name="styleSheet">
+      <string notr="true">QWidget {
+        font-family: &quot;Microsoft YaHei UI&quot;;
+        font-size: 9pt;
+        }</string>
+    </property>
+    <widget class="QWidget" name="centralwidget">
+      <layout class="QVBoxLayout" name="verticalLayout">
+        <property name="spacing">
+          <number>5</number>
+        </property>
+        <property name="leftMargin">
+          <number>5</number>
+        </property>
+        <property name="topMargin">
+          <number>5</number>
+        </property>
+        <property name="rightMargin">
+          <number>5</number>
+        </property>
+        <property name="bottomMargin">
+          <number>5</number>
+        </property>
+        <item>
+          <widget class="QCheckBox" name="cb_use_dict">
+            <property name="font">
+              <font>
+                <family>Microsoft YaHei UI</family>
+                <pointsize>10</pointsize>
+              </font>
+            </property>
+            <property name="text">
+              <string>Use Dict</string>
+            </property>
+          </widget>
+        </item>
+        <item>
+          <widget class="QSplitter" name="splitter">
+            <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+            </property>
+            <widget class="QTreeWidget" name="treeWidget">
+              <property name="headerHidden">
+                <bool>false</bool>
+              </property>
+              <column>
+                <property name="text">
+                  <string>Folder Structure</string>
+                </property>
+              </column>
+            </widget>
+            <widget class="QScrollArea" name="scrollArea">
+              <property name="widgetResizable">
+                <bool>true</bool>
+              </property>
+              <widget class="QWidget" name="scrollAreaWidgetContents">
+                <property name="geometry">
+                  <rect>
+                    <x>0</x>
+                    <y>0</y>
+                    <width>295</width>
+                    <height>533</height>
+                  </rect>
+                </property>
+                <layout class="QVBoxLayout" name="verticalLayout_2">
+                  <item>
+                    <widget class="QLabel" name="preview_label">
+                      <property name="styleSheet">
+                        <string notr="true">background-color: gray;
+                          color: white;
+                          font-size: 18px;
+                          font-weight: bold;
+                          border: 1px solid #A0A0A0;</string>
+                      </property>
+                      <property name="frameShape">
+                        <enum>QFrame::StyledPanel</enum>
+                      </property>
+                      <property name="text">
+                        <string>Select a dds file to preview.</string>
+                      </property>
+                      <property name="alignment">
+                        <set>Qt::AlignCenter</set>
+                      </property>
+                    </widget>
+                  </item>
+                </layout>
+              </widget>
+            </widget>
+          </widget>
+        </item>
+      </layout>
+    </widget>
+    <widget class="QMenuBar" name="menubar">
+      <property name="geometry">
+        <rect>
+          <x>0</x>
+          <y>0</y>
+          <width>900</width>
+          <height>26</height>
+        </rect>
+      </property>
+      <widget class="QMenu" name="menuFile">
+        <property name="title">
+          <string>File</string>
+        </property>
+        <widget class="QMenu" name="menuOpen">
+          <property name="title">
+            <string>Open...</string>
+          </property>
+          <addaction name="actionOpen_mpc" />
+          <addaction name="actionOpen_tsk" />
+          <addaction name="actionOpen_nut" />
+        </widget>
+        <addaction name="menuOpen" />
+        <addaction name="actionSave_as" />
+      </widget>
+      <widget class="QMenu" name="menuTools">
+        <property name="title">
+          <string>Tools</string>
+        </property>
+        <addaction name="actionConvert" />
+      </widget>
+      <addaction name="menuFile" />
+      <addaction name="menuTools" />
+    </widget>
+    <widget class="QStatusBar" name="statusbar" />
+    <action name="actionOpen_mpc">
+      <property name="text">
+        <string>Open MPC</string>
+      </property>
+    </action>
+    <action name="actionOpen_tsk">
+      <property name="text">
+        <string>Open TSK</string>
+      </property>
+    </action>
+    <action name="actionOpen_nut">
+      <property name="text">
+        <string>Open NUT</string>
+      </property>
+    </action>
+    <action name="actionConvert">
+      <property name="text">
+        <string>Convert</string>
+      </property>
+    </action>
+    <action name="actionSave_as">
+      <property name="text">
+        <string>Save as</string>
+      </property>
+    </action>
+  </widget>
+  <resources />
+  <connections />
+</ui>
