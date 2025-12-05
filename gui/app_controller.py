@@ -150,8 +150,15 @@ class AppController(QMainWindow):
             "nut": "NUT Files (*.nut)"
         }
         
-        # 获取对应的过滤器，如果类型不在字典中则显示所有文件
-        file_filter = filters.get(file_type, "All Files (*)")
+        # 基础过滤器
+        base_filter = filters.get(file_type, "")
+
+        # 拼接全部文件过滤器
+        if base_filter:
+            file_filter = f"{base_filter};;All Files (*)"
+        else:
+            file_filter = "All Files (*)"
+        
         
         # 弹出文件选择框
         file_name, selected_filter = QFileDialog.getOpenFileName(
@@ -270,6 +277,19 @@ class AppController(QMainWindow):
             export_action = QAction("Export", self)
             export_action.triggered.connect(lambda: self.handle_export(item_meta))
             menu.addAction(export_action)
+
+            # 导出全部选项
+            export_all_action = QAction("Export All", self)
+            export_all_action.triggered.connect(lambda: self.handle_export_all(item_meta))
+            menu.addAction(export_all_action)
+            
+            if item_meta.get('type') not in ['nut', 'tsk', 'mpc_root', 'nut_root', 'tsk_root']:
+                export_all_action.setEnabled(False)          
+            if item_meta.get('type') == 'folder':
+                import_action.setEnabled(False)
+                export_action.setEnabled(False)
+                
+                
             
             # 在鼠标的全局位置显示菜单
             menu.exec_(self.treeWidget.mapToGlobal(point))
@@ -297,11 +317,16 @@ class AppController(QMainWindow):
         
         # 通过右键菜单传来的 item 需要存储，或从树中重新获取
         # 这里我们在 show_context_menu 中也传递 item 本身
+        '''
         item = self.treeWidget.itemAt(self.treeWidget.mapFromGlobal(self.cursor().pos()))
         if not item:
             self.statusbar.showMessage("Cannot determine item context.")
             return
-        
+        '''
+        if item_meta.get('type') == 'folder':
+            self.statusbar.showMessage("Cannot export a folder. Please select a file.")
+            return
+
         offset = item_meta.get('fileoff')
         size = item_meta.get('filesize')
         file_name = item_meta.get('filename')
@@ -336,13 +361,94 @@ class AppController(QMainWindow):
         
         # 使用完整路径的目录部分作为默认保存目录
         save_dir = os.getcwd()
-        save_path = FileOperations.export_file_logic(file_data, save_dir, file_name)
-        if save_path:
-            self.statusbar.showMessage(f"Export successful for: {save_path}")
-        else:
-             self.statusbar.showMessage(f"Export failed for: {file_name}")
+        
+        default_save_path = os.path.join(save_dir, file_name)
+        
+        save_path, _ = QFileDialog.getSaveFileName(
+            None, "Export File", default_save_path, "All Files (*)"
+        )
+        
+        if not save_path:
+            return None
+        
+        target_dir = os.path.dirname(save_path) or "."
+        os.makedirs(target_dir, exist_ok=True)
+                
+        FileOperations.export_file_logic(file_data, save_path)
+       
+        self.statusbar.showMessage(f"Export successful for: {save_path}")
+
              
-             
+    def handle_export_all(self, item_meta: dict):
+        """处理 Export All 菜单点击事件，并转发给核心逻辑"""
+        if item_meta is None:
+            self.statusbar.showMessage("No item metadata available for Export All.")
+            return
+        
+        info = item_meta.get('info')
+        
+        if info is None or info.get('subfiles_info') is None:
+            self.statusbar.showMessage("No subfiles available for Export All.")
+            return
+        
+        subfiles_info = info.get('subfiles_info')
+        
+        default_dir = os.path.join(os.getcwd(), item_meta.get('filename', 'exported_dir'))
+        
+        dir_path = QFileDialog.getExistingDirectory(
+            None,
+            "Export Directory",
+            default_dir,
+            QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
+        )
+        
+        if not dir_path:
+            return
+        
+        baseOffset = item_meta.get('fileoff') or 0
+        
+        for subfile in subfiles_info:
+            offset = subfile.get('fileoff') + baseOffset
+            size = subfile.get('filesize')
+            file_name = subfile.get('filename')
+            
+            if size == 0:
+                continue  # 跳过空文件
+            file_data = self.opened_file["data"][offset:offset+size]
+            
+            if file_name.endswith(".dds"):
+                file_name = file_name[:-4] + ".png"
+                height = subfile.get('height')
+                width = subfile.get('width')
+                texFmt = subfile.get('texFmt')
+                
+                try:
+                    if texFmt == "DXT1":
+                        image = create_dxt1_dds(width, height, file_data)
+                    elif texFmt == "DXT3":
+                        image = create_dxt3_dds(width, height, file_data)
+                    elif texFmt == "DXT5":
+                        image = create_dxt5_dds(width, height, file_data)
+                    else:
+                        image = create_raw_image(width, height, file_data)
+                    buffer = BytesIO()
+                    image.save(buffer, format="PNG")
+                    file_data = buffer.getvalue()
+                except Exception as e:
+                    QMessageBox.warning(None, "Error", f"Failed to convert DDS to image: {str(e)}")
+                    return
+            
+            save_path = os.path.join(dir_path, file_name)
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+            FileOperations.export_file_logic(file_data, save_path)
+        
+        self.statusbar.showMessage(f"Export All completed to directory: {dir_path}, total {len(subfiles_info)} files.")
+            
+            
+            
+    
+    
+        
     def display_image(self, image_meta):
         offset = image_meta["fileoff"]
         size = image_meta["filesize"]
@@ -508,6 +614,16 @@ class AppController(QMainWindow):
                 
                 # 递归调用自身，将子文件的内容挂载到当前 file_item 下
                 if sub_info:
+                    #subfile['subfiles_info'] = sub_info
+                    data = file_item.data(0, Qt.UserRole)
+                    data.update({
+                        'info': {
+                            'file_nums': sub_info.get('file_nums', 0),
+                            'subfiles_info': sub_info.get('subfiles_info', [])
+                        }
+                    })
+                    file_item.setData(0, Qt.UserRole, data)
+                    
                     # 注意：这里需要确保文件项在递归前已经设置了子节点，才能成功展开
                     self._build_recursive_structure(file_item, subfile_extension, sub_info, subfile['fileoff'])
                     # 在添加完子结构后，设置展开状态

@@ -16,22 +16,8 @@ class FileOperations:
         return True
 
     @staticmethod
-    def export_file_logic(file_data: bytes, full_path: str, file_name: str):
+    def export_file_logic(file_data: bytes, export_path: str):
         """导出文件"""
-
-        default_save_path = os.path.join(full_path, file_name)
-        
-        save_path, _ = QFileDialog.getSaveFileName(
-            None, "Export File", default_save_path, "All Files (*)"
-        )
-        
-        if not save_path:
-            return None
-        
-        target_dir = os.path.dirname(save_path) or "."
-        os.makedirs(target_dir, exist_ok=True)
-        
-        with open(save_path, 'wb') as f:
+        with open(export_path, 'wb') as f:
             f.write(file_data)
         
-        return save_path
