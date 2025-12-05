@@ -1,0 +1,6 @@
+imageio==2.8.0
+numpy==1.19.5
+Pillow==9.5.0
+pydds==0.0.8
+PyQt5==5.15.7
+PyQt5_sip==12.11.0
