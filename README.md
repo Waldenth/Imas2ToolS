@@ -1,18 +1,30 @@
-# Imas2ToolS
-Tool set for idolm@ster2 ps3 ver.
+## Imas2ToolS
 
-## File Introduction in Imas2
+Tool set for idolm@ster2 ps3 ver translation.
 
-```
-mpc: imas2 archive package file format. include xmb, tsk, scb, nut files
+![Preview](https://s2.loli.net/2025/12/06/BmdstciHgLz7Tfx.jpg)
 
-scb: imas2 communicate script, include text which need to be translated
+### File Introduction in Imas2
 
-tsk: imas2 image and ico package file format. we can repack it by just rewrite offset data
+- [ ] `mpc`:  The imas2 archive package file format.  include `xmb`, `tsk`, `scb` and `nut  `files
+  - [x] preview
+  - [x] unpack
+  - [ ] repack 
 
-nut: imas2 dxt3-dds image package file format. (dxt3-dds size is same when the picture size is same, so 
-we can repack it by just rewrite offset data)
+- [ ] `scb`: The imas2 communicate script, include text which need to be translated (not in this tool)
+  - [x] modify text
 
-xmb: imas2 system information (mail, system info, pic pos info and so on), we can repack it by just rewrite offset data
-```
+- [ ] `xmb`: The imas2 system information file (mail, system info, picture position info,  etc.) can be repacked simply by overwriting the Japanese text at the corresponding offsets with the translated text, and filling the remaining unused bytes with zeros.
+
+- [ ] `tsk`: The imas2 image and icon package file format. include `tsk` and `nut` files, we can repack it by just rewrite offset data
+  - [x] preview
+  - [x] unpack
+  - [ ] repack 
+
+- [ ] `nut`: The imas2 `DXT1`, `DXT3`, `DXT5` and `RAW`  `DDS` texture  package file format. (`DDS` size is same when the texture size is same, so we can also repack it by just rewrite offset data)
+  - [x] preview
+  - [x] unpack
+  - [ ] repack
+
+
 
