@@ -19,6 +19,9 @@ class ScalableLabel(QLabel):
         self._pixmap = QPixmap()
         self.scale_factor = 1.0
         self.base_pixmap = QPixmap() # 存储未缩放的原始图像
+        self.original_width = self.width()
+        self.original_height = self.height()
+        
 
     def set_image(self, pixmap: QPixmap):
         """设置新的图像，并重置缩放因子"""
@@ -31,6 +34,18 @@ class ScalableLabel(QLabel):
             self.base_pixmap = pixmap
             self.scale_factor = 1.0
             self.update_pixmap()
+
+    def clear_image(self):
+        # 清空 pixmap 本体
+        self._pixmap = QPixmap()
+        super().setPixmap(self._pixmap)
+        self.base_pixmap = QPixmap()
+        self.setFixedSize(800, 600)
+        self.scale_factor = 1.0
+        # 通知 scrollArea 的内部 widget 尺寸更新
+        pw = self.parentWidget()
+        if pw:
+            pw.adjustSize()
 
     def update_pixmap(self):
         """根据当前缩放因子和原始图像更新显示"""

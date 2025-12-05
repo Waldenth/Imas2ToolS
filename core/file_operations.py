@@ -1,4 +1,6 @@
 # core/file_operations.py
+import os
+from PyQt5.QtWidgets import QFileDialog
 
 class FileOperations:
     """
@@ -6,17 +8,30 @@ class FileOperations:
     """
     
     @staticmethod
-    def import_file_logic(item_path: str):
+    def replace_file_logic(item_meta: dict):
         """导入文件到特定路径"""
         # 在这里执行实际的文件导入代码（例如：打开文件选择框，读取新文件，更新资源）
-        print(f"CORE: 开始导入新资源到目标路径: {item_path}")
+        print(f"CORE: 开始导入新资源到目标路径: {item_meta}")
         # 示例：假设导入成功
         return True
 
     @staticmethod
-    def export_file_logic(item_path: str):
+    def export_file_logic(file_data: bytes, full_path: str, file_name: str):
         """导出文件"""
-        # 在这里执行实际的文件导出代码（例如：打开保存对话框，将资源文件写入磁盘）
-        print(f"CORE: 正在将文件导出到外部路径: {item_path}")
-        # 示例：假设导出成功
-        return True
+
+        default_save_path = os.path.join(full_path, file_name)
+        
+        save_path, _ = QFileDialog.getSaveFileName(
+            None, "Export File", default_save_path, "All Files (*)"
+        )
+        
+        if not save_path:
+            return None
+        
+        target_dir = os.path.dirname(save_path) or "."
+        os.makedirs(target_dir, exist_ok=True)
+        
+        with open(save_path, 'wb') as f:
+            f.write(file_data)
+        
+        return save_path
