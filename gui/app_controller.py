@@ -23,7 +23,7 @@ class AppController(QMainWindow):
         
         self.fileoperations = FileOperations()
         
-        self.fileoperations.opened_file = {'type': None, 'data': None} # <--- 统一存储当前打开的文件数据
+        self.fileoperations.opened_file = {'type': None, 'data': None, 'filename': 'untitled.bin'} # <--- 统一存储当前打开的文件数据
         
         #self.opened_file = {'type': None, 'data': None} # <--- 统一存储当前打开的文件数据
         
@@ -182,8 +182,7 @@ class AppController(QMainWindow):
                 loaded_info = None
 
                 # 关键：清空旧数据并存储新数据
-                self.fileoperations.opened_file = {'type': file_type, 'data': file_data}
-                self.fileoperations.opened_file['type'] = file_type
+                self.fileoperations.opened_file = {'type': file_type, 'data': file_data, 'filename': root_name}
 
                 if file_type == 'mpc':
                     # 调用 mpctool 解析文件
@@ -254,8 +253,20 @@ class AppController(QMainWindow):
     
     def handle_save_as(self):
         """处理主菜单 Save As 点击事件"""
-        self.statusbar.showMessage("Handling Save As...")
-        # ... 调用 FileOperations ...  
+        save_dir = os.getcwd()
+        file_name = self.fileoperations.opened_file.get('filename')
+        default_save_path = os.path.join(save_dir, file_name)
+        
+        save_path, _ = QFileDialog.getSaveFileName(
+            None, "Save As", default_save_path, "All Files (*)"
+        )
+        
+        self.fileoperations.export_file_logic(
+            self.fileoperations.opened_file.get('data'),
+            save_path
+        )
+        
+        self.statusbar.showMessage(f"File saved as: {save_path}")
 
 
     # --- 右键菜单相关方法 ---

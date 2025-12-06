@@ -7,7 +7,7 @@ class FileOperations:
     负责处理底层的文件导入、导出、解析等核心业务逻辑。
     """
     
-    opened_file = {'type': None, 'data': None}   # 存储当前打开的文件数据
+    opened_file = {'type': None, 'data': None, 'filename': 'untitled.bin'}   # 存储当前打开的文件数据
     
     
     def replace_file_logic(self, item_meta: dict, new_file_data: bytes):
