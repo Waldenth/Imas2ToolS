@@ -21,7 +21,11 @@ class AppController(QMainWindow):
     def __init__(self):
         super().__init__()
         
-        self.opened_file = {'type': None, 'data': None} # <--- 统一存储当前打开的文件数据
+        self.fileoperations = FileOperations()
+        
+        self.fileoperations.opened_file = {'type': None, 'data': None} # <--- 统一存储当前打开的文件数据
+        
+        #self.opened_file = {'type': None, 'data': None} # <--- 统一存储当前打开的文件数据
         
         self.mpc_file_info = None # <-- 新增：存储解析后的 MPC 文件信息
         
@@ -178,8 +182,8 @@ class AppController(QMainWindow):
                 loaded_info = None
 
                 # 关键：清空旧数据并存储新数据
-                self.opened_file['data'] = file_data
-                self.opened_file['type'] = file_type
+                self.fileoperations.opened_file = {'type': file_type, 'data': file_data}
+                self.fileoperations.opened_file['type'] = file_type
 
                 if file_type == 'mpc':
                     # 调用 mpctool 解析文件
@@ -285,7 +289,7 @@ class AppController(QMainWindow):
             
             if item_meta.get('type') not in ['nut', 'tsk', 'mpc_root', 'nut_root', 'tsk_root']:
                 export_all_action.setEnabled(False)          
-            if item_meta.get('type') == 'folder':
+            if item_meta.get('type') in ['nut_root', 'tsk_root', 'mpc_root', 'folder']:
                 import_action.setEnabled(False)
                 export_action.setEnabled(False)
                 
@@ -303,11 +307,29 @@ class AppController(QMainWindow):
             self.statusBar.showMessage("No item metadata available for Replace.")
             return
         
-        self.statusbar.showMessage(f"Attempting to Replace for: {item_meta}")
-        if FileOperations.replace_file_logic(item_meta):
-            self.statusbar.showMessage(f"Replace successful for: {item_meta}")
-        else:
-             self.statusbar.showMessage(f"Replace failed for: {item_meta}")
+        replaced_file_path, _ = QFileDialog.getOpenFileName(
+            None, "Select File to Replace", "", "All Files (*)"
+        )
+        
+        if not replaced_file_path:
+            return None
+        
+        replace_file = open(replaced_file_path, 'rb').read()
+        need_refresh = False
+        if replaced_file_path.endswith(".dds"):
+            need_refresh = True
+            replace_file = replace_file[128:]  # 去掉 DDS 头部，保留原始纹理数据
+        
+        if item_meta.get('filesize', 0) != len(replace_file):
+            QMessageBox.warning(None, "Error", "The size of the replacement file does not match the original file.")
+            return
+        
+        success = self.fileoperations.replace_file_logic(item_meta, replace_file)
+        if success:
+            self.statusbar.showMessage(f"Replace successful for: {item_meta.get('filename')}")
+            if need_refresh:
+                self.display_image(item_meta) # 重新显示替换后的图像
+
              
     def handle_export(self, item_meta: dict):
         """处理 Export 菜单点击事件，并转发给核心逻辑"""
@@ -336,7 +358,7 @@ class AppController(QMainWindow):
             QMessageBox.information(None, "Info", "The selected file is empty. Nothing to export.")
             return 
         
-        file_data = self.opened_file["data"][offset:offset+size]
+        file_data = self.fileoperations.opened_file["data"][offset:offset+size]
         
         if file_name.endswith(".dds"):
             file_name = file_name[:-4] + ".png"
@@ -414,7 +436,7 @@ class AppController(QMainWindow):
             
             if size == 0:
                 continue  # 跳过空文件
-            file_data = self.opened_file["data"][offset:offset+size]
+            file_data = self.fileoperations.opened_file["data"][offset:offset+size]
             
             if file_name.endswith(".dds"):
                 file_name = file_name[:-4] + ".png"
@@ -456,7 +478,7 @@ class AppController(QMainWindow):
         height = image_meta['height']
         texFmt = image_meta['texFmt']
         
-        file_data = self.opened_file["data"][offset:offset+size]
+        file_data = self.fileoperations.opened_file["data"][offset:offset+size]
         image = None
             
         try:
@@ -486,7 +508,7 @@ class AppController(QMainWindow):
 
         offset = image_meta["fileoff"]
         size = image_meta ["filesize"]
-        image_data = self.opened_file["data"][offset:offset+size]
+        image_data = self.fileoperations.opened_file["data"][offset:offset+size]
         image = None
         
         try:
@@ -599,9 +621,9 @@ class AppController(QMainWindow):
                 
                 # 读取子文件数据
                 try:
-                    # 假设 self.opened_file['data'] 存储了整个原始文件数据
+                    # 假设 self.fileoperations.opened_file['data'] 存储了整个原始文件数据
                     # 如果这个方法是在 AppController 中调用的，那么这个数据应该可以访问
-                    file_data = self.opened_file['data'][subfile['fileoff']:subfile['fileoff'] + subfile['filesize']]
+                    file_data = self.fileoperations.opened_file['data'][subfile['fileoff']:subfile['fileoff'] + subfile['filesize']]
                 except Exception as e:
                     print(f"读取内嵌文件 {subfile_filename} 数据失败: {e}")
                     continue # 跳过无法读取的文件
