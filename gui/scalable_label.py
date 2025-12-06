@@ -40,7 +40,7 @@ class ScalableLabel(QLabel):
         self._pixmap = QPixmap()
         super().setPixmap(self._pixmap)
         self.base_pixmap = QPixmap()
-        self.setFixedSize(800, 600)
+        self.setFixedSize(512, 512)
         self.scale_factor = 1.0
         # 通知 scrollArea 的内部 widget 尺寸更新
         pw = self.parentWidget()

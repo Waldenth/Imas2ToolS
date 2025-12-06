@@ -139,7 +139,21 @@ class AppController(QMainWindow):
         elif item_type in ('mpc_root', 'nut_root','folder', 'file'):
             # 清空预览区或显示元数据
             self.preview_label.clear_image()
-            self.preview_label.setText(f"Selected: {item_data.get('filename') or item_data.get('path')}")
+            self.preview_label.setText("No preview available for this item.")
+        
+        selected_item_name = 'N/A'
+        msg = ""
+        if item_data.get('type') in ['mpc_root', 'nut_root', 'tsk_root'] :
+            selected_item_name = item_data.get('path', 'N/A')
+            msg = f"Selected root container: {selected_item_name}"
+        elif item_data.get('type') == 'folder':
+            selected_item_name = item_data.get('path', 'N/A')
+            msg = f"Selected folder: {selected_item_name}"
+        else:
+            selected_item_name = item_data.get('filename', 'N/A')
+            msg = f"Selected file: {selected_item_name}"
+            
+        self.statusbar.showMessage(msg)
 
 
     def handle_open_file(self, file_type: str):
