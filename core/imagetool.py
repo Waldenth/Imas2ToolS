@@ -5,7 +5,7 @@ from PIL import Image
 import numpy as np
 import imageio
 import io
-
+from io import BytesIO
 
 
 def create_dxt5_dds(width, height, rawdata):
@@ -179,3 +179,24 @@ def a1r5g5b5_to_rgba8888_conversion(rgb565_bytes, width, height, is_big_endian=T
     # 5. 重塑为图像的 (height, width, 4) 形状
     return rgba8888_array.reshape((height, width, 4))
 
+
+def dds_to_png(dds_data, texFmt, width, height):
+    """
+    将 DDS 数据转换为 PNG 图像
+    """
+    if texFmt == 'DXT1':
+        image = create_dxt1_dds(width, height, dds_data)
+    elif texFmt == 'DXT3':
+        image = create_dxt3_dds(width, height, dds_data)
+    elif texFmt == 'DXT5':
+        image = create_dxt5_dds(width, height, dds_data)
+    else:
+        image = create_raw_image(width, height, dds_data)
+
+    if image is None:
+        raise ValueError("Unsupported image format or data.")
+    
+    # 将图像转换为 PNG 格式并返回字节数据
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()

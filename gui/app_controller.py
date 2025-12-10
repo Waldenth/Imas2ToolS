@@ -23,9 +23,7 @@ class AppController(QMainWindow):
         
         self.fileoperations = FileOperations()
         
-        self.fileoperations.opened_file = {'type': None, 'data': None, 'filename': 'untitled.bin'} # <--- 统一存储当前打开的文件数据
-        
-        #self.opened_file = {'type': None, 'data': None} # <--- 统一存储当前打开的文件数据
+        self.fileoperations.opened_file = {'type': None, 'data': None, 'name': 'untitled.bin'} # <--- 统一存储当前打开的文件数据
         
         self.mpc_file_info = None # <-- 新增：存储解析后的 MPC 文件信息
         
@@ -129,28 +127,26 @@ class AppController(QMainWindow):
         item_type = item_data.get('type')
         
         
-        if item_data.get('filename') is not None \
-            and (item_data.get('filename').lower().endswith('.png') or item_data.get('filename').lower().endswith('.jpg')):
+        if item_data.get('name') is not None \
+            and item_type == "file_image":
             # 这是一个可预览的位图文件
-            self.display_bitmap(item_data)
-        elif item_type == 'dds':
-            # 这是一个可预览的 DDS 纹理文件
             self.display_image(item_data)
-        elif item_type in ('mpc_root', 'nut_root','folder', 'file'):
+        elif item_type == 'file_texture':
+            # 这是一个可预览的 DDS 纹理文件
+            self.display_texture(item_data)
+        else:
             # 清空预览区或显示元数据
             self.preview_label.clear_image()
             self.preview_label.setText("No preview available for this item.")
         
         selected_item_name = 'N/A'
         msg = ""
-        if item_data.get('type') in ['mpc_root', 'nut_root', 'tsk_root'] :
-            selected_item_name = item_data.get('path', 'N/A')
-            msg = f"Selected root container: {selected_item_name}"
-        elif item_data.get('type') == 'folder':
+
+        if item_data.get('type') == 'folder':
             selected_item_name = item_data.get('path', 'N/A')
             msg = f"Selected folder: {selected_item_name}"
         else:
-            selected_item_name = item_data.get('filename', 'N/A')
+            selected_item_name = item_data.get('path', 'N/A')
             msg = f"Selected file: {selected_item_name}"
             
         self.statusbar.showMessage(msg)
@@ -196,29 +192,29 @@ class AppController(QMainWindow):
                 loaded_info = None
 
                 # 关键：清空旧数据并存储新数据
-                self.fileoperations.opened_file = {'type': file_type, 'data': file_data, 'filename': root_name}
+                self.fileoperations.opened_file = {'type': file_type, 'data': file_data, 'name': root_name}
 
                 if file_type == 'mpc':
                     # 调用 mpctool 解析文件
-                    self.mpc_file_info = load_mpc(file_data, root_name)
+                    self.mpc_file_info = load_mpc_beta(file_data, root_name)
                     loaded_info = self.mpc_file_info
                     
                 elif file_type == 'tsk':
                     # TODO: TSK 文件解析逻辑
-                    self.tsk_file_info = load_tsk(file_data, root_name.split('.')[0])
+                    self.tsk_file_info = load_tsk_beta(file_data, root_name.split('.')[0])
                     loaded_info = self.tsk_file_info
 
                 elif file_type == 'nut':
                     # TODO: NUT 文件解析逻辑
                     # 调用 nuttool 解析文件
-                    self.nut_file_info = load_nut(file_data, root_name)
+                    self.nut_file_info = load_nut_beta(file_data, root_name)
                     loaded_info = self.nut_file_info
         
                 
                 if loaded_info:
                     # 关键修改：传入 file_type 和 loaded_info
                     self.update_folder_structure(root_name, file_type, loaded_info)
-                    self.statusbar.showMessage(f"Successfully loaded and parsed {root_name}. ({loaded_info.get('file_nums', 0)} files found)")
+                    self.statusbar.showMessage(f"Successfully loaded and parsed {root_name}.")
 
 
             except Exception as e:
@@ -232,28 +228,28 @@ class AppController(QMainWindow):
     
     def update_folder_structure(self, root_name: str, file_type: str, info: dict):
         """
-        根据解析后的信息，清空并重建 Folder Structure TreeWidget (使用递归)。
+        根据解析后的树形信息 (item.json 样式)，重建 TreeWidget。
         """
 
         # 清空现有结构
         self.treeWidget.clear()
-        
-        # 1. 创建根节点 (主文件本身)
-        root_filesize = info.get('file_size', 0)
-        root_display_name = self._format_item_name(root_name, root_filesize)
+
+        root_display_name = self._format_item_name(info.get('name', root_name), info.get('size', 0))
         root_item = QTreeWidgetItem(self.treeWidget, [root_display_name])
-        
-        root_item.setData(0, Qt.UserRole, {
-            'type': f'{file_type}_root',
-            'path': root_name,
-            'info': info
+
+        rootInfo = info
+        rootInfo.update({
+            'type': f"file_{file_type}",
+            'path': info.get('name', root_name),
         })
-        
-        # 2. 调用递归方法构建子结构
-        # 初始偏移量为 0，因为它是主文件
-        self._build_recursive_structure(root_item, file_type, info, 0) 
-        
-        # 3. 展开根节点
+
+        root_item.setData(0, Qt.UserRole, rootInfo)
+
+        # 递归构建（修改后的 info 会被同步）
+        self._build_recursive_structure(root_item, file_type, rootInfo, parent_path=info.get('name', root_name))
+
+        # 确保最终数据同步回 rootInfo
+        root_item.setData(0, Qt.UserRole, rootInfo)
         root_item.setExpanded(True)
         
 
@@ -268,7 +264,7 @@ class AppController(QMainWindow):
     def handle_save_as(self):
         """处理主菜单 Save As 点击事件"""
         save_dir = os.getcwd()
-        file_name = self.fileoperations.opened_file.get('filename')
+        file_name = self.fileoperations.opened_file.get('name')
         default_save_path = os.path.join(save_dir, file_name)
         
         save_path, _ = QFileDialog.getSaveFileName(
@@ -312,19 +308,27 @@ class AppController(QMainWindow):
             export_all_action.triggered.connect(lambda: self.handle_export_all(item_meta))
             menu.addAction(export_all_action)
             
-            if item_meta.get('type') not in ['nut', 'tsk', 'mpc_root', 'nut_root', 'tsk_root']:
+            # 递归导出全部选项
+            export_all_files_action = QAction("Export All Files (Recursive)", self)
+            export_all_files_action.triggered.connect(lambda: self.handle_export_all_recursive(item_meta))
+            menu.addAction(export_all_files_action)
+            
+            
+            
+            if item_meta.get('type') not in ['file_nut', 'file_tsk', 'file_mpc','folder']:
                 export_all_action.setEnabled(False)          
-            if item_meta.get('type') in ['nut_root', 'tsk_root', 'mpc_root', 'folder']:
+                export_all_files_action.setEnabled(False)
+                
+            if item_meta.get('type') in ['folder']:
                 import_action.setEnabled(False)
                 export_action.setEnabled(False)
-                
-                
             
             # 在鼠标的全局位置显示菜单
             menu.exec_(self.treeWidget.mapToGlobal(point))
         else:
             # 如果点击在空白区域，可以显示一个不同的菜单，或者不显示
             pass
+        
             
     def handle_replace(self, item_meta: dict):
         """处理 Replace 菜单点击事件，并转发给核心逻辑"""
@@ -345,15 +349,15 @@ class AppController(QMainWindow):
             need_refresh = True
             replace_file = replace_file[128:]  # 去掉 DDS 头部，保留原始纹理数据
         
-        if item_meta.get('filesize', 0) != len(replace_file):
+        if item_meta.get('size', 0) != len(replace_file):
             QMessageBox.warning(None, "Error", "The size of the replacement file does not match the original file.")
             return
         
         success = self.fileoperations.replace_file_logic(item_meta, replace_file)
         if success:
-            self.statusbar.showMessage(f"Replace successful for: {item_meta.get('filename')}")
+            self.statusbar.showMessage(f"Replace successful for: {item_meta.get('name')}")
             if need_refresh:
-                self.display_image(item_meta) # 重新显示替换后的图像
+                self.display_texture(item_meta) # 重新显示替换后的图像
 
              
     def handle_export(self, item_meta: dict):
@@ -374,9 +378,9 @@ class AppController(QMainWindow):
             self.statusbar.showMessage("Cannot export a folder. Please select a file.")
             return
 
-        offset = item_meta.get('fileoff')
-        size = item_meta.get('filesize')
-        file_name = item_meta.get('filename')
+        offset = item_meta.get('offset')
+        size = item_meta.get('size')
+        file_name = item_meta.get('name')
         
         
         if size == 0:
@@ -392,17 +396,7 @@ class AppController(QMainWindow):
             texFmt = item_meta.get('texFmt')
             
             try:
-                if texFmt == "DXT1":
-                    image = create_dxt1_dds(width, height, file_data)
-                elif texFmt == "DXT3":
-                    image = create_dxt3_dds(width, height, file_data)
-                elif texFmt == "DXT5":
-                    image = create_dxt5_dds(width, height, file_data)
-                else:
-                    image = create_raw_image(width, height, file_data)
-                buffer = BytesIO()
-                image.save(buffer, format="PNG")
-                file_data = buffer.getvalue()
+                file_data = dds_to_png(file_data, texFmt, width, height)
             except Exception as e:
                 QMessageBox.warning(None, "Error", f"Failed to convert DDS to image: {str(e)}")
         
@@ -427,78 +421,161 @@ class AppController(QMainWindow):
 
              
     def handle_export_all(self, item_meta: dict):
-        """处理 Export All 菜单点击事件，并转发给核心逻辑"""
+        """异步处理 Export All 菜单点击事件，并转发给核心逻辑"""
+        from PyQt5.QtCore import QTimer
+
         if item_meta is None:
             self.statusbar.showMessage("No item metadata available for Export All.")
             return
-        
-        info = item_meta.get('info')
-        
-        if info is None or info.get('subfiles_info') is None:
+
+        if item_meta.get('subItem') is None:
             self.statusbar.showMessage("No subfiles available for Export All.")
             return
-        
-        subfiles_info = info.get('subfiles_info')
-        
-        default_dir = os.path.join(os.getcwd(), item_meta.get('filename', 'exported_dir'))
-        
+
+        subfiles_info = item_meta.get('subItem', [])
+        default_dir = os.path.join(os.getcwd(), item_meta.get('name', '') + '_folder')
         dir_path = QFileDialog.getExistingDirectory(
             None,
             "Export Directory",
             default_dir,
             QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
         )
-        
         if not dir_path:
             return
-        
-        baseOffset = item_meta.get('fileoff') or 0
-        
-        for subfile in subfiles_info:
-            offset = subfile.get('fileoff') + baseOffset
-            size = subfile.get('filesize')
-            file_name = subfile.get('filename')
-            
+
+        export_file_info ={
+            "parent_file": item_meta.get('path').split('/')[0],
+            "file_list": []
+        }
+
+        self._export_queue = list(subfiles_info)
+        self._export_dir = dir_path
+        self._export_count = 0
+        self._export_file_info = export_file_info
+        self._export_json_path = os.path.join(dir_path, "{}.json".format(item_meta.get('name')))
+
+        def process_next():
+            if not self._export_queue:
+                FileOperations.save_json_to_file(self._export_file_info, self._export_json_path)
+                self.statusbar.showMessage(f"Export All completed to directory: {self._export_dir}, total {self._export_count} files.")
+                return
+            subfile = self._export_queue.pop(0)
+            offset = subfile.get('offset')
+            size = subfile.get('size')
+            file_name = subfile.get('name')
             if size == 0:
-                continue  # 跳过空文件
+                QTimer.singleShot(10, process_next)
+                return
             file_data = self.fileoperations.opened_file["data"][offset:offset+size]
-            
+            self._export_file_info["file_list"].append({
+                "name": file_name,
+                "offset": offset,
+                "size": size,
+            })
             if file_name.endswith(".dds"):
                 file_name = file_name[:-4] + ".png"
                 height = subfile.get('height')
                 width = subfile.get('width')
                 texFmt = subfile.get('texFmt')
-                
                 try:
-                    if texFmt == "DXT1":
-                        image = create_dxt1_dds(width, height, file_data)
-                    elif texFmt == "DXT3":
-                        image = create_dxt3_dds(width, height, file_data)
-                    elif texFmt == "DXT5":
-                        image = create_dxt5_dds(width, height, file_data)
-                    else:
-                        image = create_raw_image(width, height, file_data)
-                    buffer = BytesIO()
-                    image.save(buffer, format="PNG")
-                    file_data = buffer.getvalue()
+                    file_data = dds_to_png(file_data, texFmt, width, height)
                 except Exception as e:
                     QMessageBox.warning(None, "Error", f"Failed to convert DDS to image: {str(e)}")
+                    QTimer.singleShot(10, process_next)
                     return
-            
-            save_path = os.path.join(dir_path, file_name)
+            save_path = os.path.join(self._export_dir, file_name)
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
             FileOperations.export_file_logic(file_data, save_path)
-        
-        self.statusbar.showMessage(f"Export All completed to directory: {dir_path}, total {len(subfiles_info)} files.")
-            
+            self._export_count += 1
+            self.statusbar.showMessage(f"Exported: {file_name}, {self._export_count}/{len(subfiles_info)}")
+            QTimer.singleShot(10, process_next)
+
+        process_next()
             
             
     
+    def handle_export_all_recursive(self, item_meta: dict):
+        """处理 Export All Recursive 菜单点击事件，并转发给核心逻辑"""
+        if item_meta is None:
+            self.statusbar.showMessage("No item metadata available for Export All Recursive.")
+            return
+
+        if item_meta.get('subItem') is None:
+            self.statusbar.showMessage("No subfiles available for Export All Recursive.")
+            return
+
+        default_dir = os.path.join(os.getcwd(), item_meta.get('name', '')+'_recursive')
+        dir_path = QFileDialog.getExistingDirectory(
+            None,
+            "Export Directory",
+            default_dir,
+            QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
+        )
+        if not dir_path:
+            return
+
+        export_file_info ={
+            "parent_file": item_meta.get('path').split('/')[0],
+            "file_list": []
+        }
+        
+        self._export_file_info = export_file_info
+        self._export_json_path = os.path.join(dir_path, "{}.json".format(item_meta.get('name')))
+        
+        def export_recursive(subitems, current_dir):
+            for subitem in subitems:
+                name = subitem.get('name')
+                size = subitem.get('size', 0)
+                offset = subitem.get('offset', 0)
+                ctype = subitem.get('type', 'file')
+
+                target_path = os.path.join(current_dir, name)
+
+                if ctype == 'folder':
+                    os.makedirs(target_path, exist_ok=True)
+                    export_recursive(subitem.get('subItem', []), target_path)
+                else:
+                    if size == 0:
+                        continue
+                    file_data = self.fileoperations.opened_file["data"][offset:offset+size]
+                    
+                    if ctype in ['file_mpc', 'file_tsk', 'file_nut']:
+                        target_file_path = os.path.join(current_dir, name)
+                        os.makedirs(os.path.dirname(target_file_path), exist_ok=True)
+                        export_recursive(subitem.get('subItem', []), target_file_path)
+                        continue
+                        
+                    
+                    if name.endswith(".dds"):
+                        name = name[:-4] + ".png"
+                        height = subitem.get('height')
+                        width = subitem.get('width')
+                        texFmt = subitem.get('texFmt')
+                        try:
+                            file_data = dds_to_png(file_data, texFmt, width, height)
+                        except Exception as e:
+                            QMessageBox.warning(None, "Error", f"Failed to convert DDS to image: {str(e)}")
+                            continue
+                    target_file_path = os.path.join(current_dir, name)
+                    os.makedirs(os.path.dirname(target_file_path), exist_ok=True)
+                    FileOperations.export_file_logic(file_data, target_file_path)
+                    self._export_file_info["file_list"].append({
+                        name: target_file_path,
+                        "offset": offset,
+                        "size": size,
+                    })
+
+        export_recursive(item_meta.get('subItem', []), dir_path)
+        FileOperations.save_json_to_file(self._export_file_info, self._export_json_path)
+        self.statusbar.showMessage(f"Export All Recursive completed to directory: {dir_path}")
+    
+      
+    
     
         
-    def display_image(self, image_meta):
-        offset = image_meta["fileoff"]
-        size = image_meta["filesize"]
+    def display_texture(self, image_meta):
+        offset = image_meta["offset"]
+        size = image_meta["size"]
         width = image_meta['width']
         height = image_meta['height']
         texFmt = image_meta['texFmt']
@@ -529,10 +606,10 @@ class AppController(QMainWindow):
         else:
             self.preview_label.setText("Failed to load image. pixmap is null.")
             
-    def display_bitmap(self, image_meta):
+    def display_image(self, image_meta):
 
-        offset = image_meta["fileoff"]
-        size = image_meta ["filesize"]
+        offset = image_meta["offset"]
+        size = image_meta ["size"]
         image_data = self.fileoperations.opened_file["data"][offset:offset+size]
         image = None
         
@@ -561,118 +638,86 @@ class AppController(QMainWindow):
         return f"{filename} ({filesize} bytes)"
     
 
-    def _build_recursive_structure(self, parent_item: QTreeWidgetItem, file_type: str, info: dict, parent_offset: int):
+    def _build_recursive_structure(self, parent_item: QTreeWidgetItem, file_type: str, node: dict, parent_path: str):
         """
-        递归构建文件结构，处理嵌套的容器文件 (如 NUT, TSK, MPC)。
-
-        :param parent_item: 当前子文件要挂载到的父级 QTreeWidgetItem。
-        :param file_type: 当前容器的类型 ('mpc', 'tsk', 'nut')。
-        :param info: 当前容器的解析数据 (包含 'subfiles_info')。
-        :param parent_offset: 父容器在原始大文件中的起始偏移量。
+        根据 item.json 样式的节点递归构建树。node 包含 name/type/size/offset/subItem。
+        直接修改 node['subItem'][i] 中的数据，保证父节点数据同步更新。
         """
-        
-        # 存储文件夹结构，键为路径，值为 QTreeWidgetItem (仅用于 MPC/TSK 的文件夹结构)
-        folder_map = {'.': parent_item}
-        
-        # --- 递归遍历子文件 ---
-        for subfile in info.get('subfiles_info', []):
-            subfile_filename = subfile['filename']
-            
-            # 0. 修正文件偏移量 (所有子文件的偏移量都基于它们的容器文件)
-            # 将相对偏移量修正为相对于原始大文件的绝对偏移量
-            subfile['fileoff'] += parent_offset 
 
-            # 1. 提取文件信息
-            subfile_filesize = subfile.get('filesize', 0)
-            display_name = self._format_item_name(subfile_filename, subfile_filesize)
-            subfile_extension = subfile_filename.split('.')[-1].lower()
-            
-            # 2. TSK 和 MPC 需要路径/文件夹结构，NUT 不需要
-            if file_type == 'mpc' or file_type == 'tsk':
-                
-                # --- 2a. 路径/文件夹结构创建 ---
-                path_parts = subfile['absfilepath'].split('/')
-                current_path = []
-                
-                # 遍历路径，创建文件夹节点
-                current_parent = parent_item
-                for i in range(len(path_parts) - 1):
-                    part = path_parts[i]
-                    if part and part != '.':
-                        current_path.append(part)
-                    
-                    parent_key = '/'.join(current_path[:-1]) if current_path[:-1] else '.'
-                    current_key = '/'.join(current_path)
-                    
-                    if current_key not in folder_map:
-                        parent_folder_item = folder_map.get(parent_key, current_parent) # 根级容器或上级文件夹
-                        folder_item = QTreeWidgetItem(parent_folder_item, [part])
-                        folder_item.setData(0, Qt.UserRole, {'type': 'folder', 'path': current_key})
-                        folder_map[current_key] = folder_item
-                        
-                        # 检查是否为 NUT 容器在路径中，并自动展开 (仅在 path_parts 中)
-                        if part.lower().endswith('.nut') or part.lower().endswith('.tsk'):
-                            folder_item.setExpanded(True) # 容器在路径中时展开
-                    
-                    current_parent = folder_map.get(current_key, current_parent)
-                
-                # 2b. 设置文件节点的父级
-                parent_item_for_file = folder_map.get(subfile.get('folderpath', '') if subfile.get('folderpath') else '.', parent_item)
-            
-            else: # NUT 文件，直接挂载到 parent_item 下
-                parent_item_for_file = parent_item
+        subitem_list = node.get('subItem', [])
+        for idx, child in enumerate(subitem_list):
+            name = child.get('name', '')
+            size = child.get('size', 0)
+            offset = child.get('offset', 0)
+            ctype = child.get('type', 'file')
 
-            is_container = subfile_extension in ['nut', 'tsk']
-            container_path_key = subfile.get('absfilepath', '')
+            display_name = self._format_item_name(name, size)
+            full_path = f"{parent_path}/{name}" if parent_path else name
+
+            item = QTreeWidgetItem(parent_item, [display_name])
             
-            if is_container and container_path_key in folder_map:
-                # 如果是容器文件，并且它已经在路径解析中被创建成了文件夹节点（即 folder_map 中存在），
-                # 则使用该现有节点作为递归的父节点，避免创建重复的 file_item。
-                file_item = folder_map[container_path_key]
-                # 我们仍然需要更新它的数据，特别是修正后的 fileoff
-                file_item.setData(0, Qt.UserRole, subfile)
+            # 直接修改原始 child 引用，确保同步回 node['subItem'][idx]
+            child.update({
+                'path': full_path,
+            })
+            
+            if size == 0:
+                item.setForeground(0, Qt.gray)  # 设置为灰色字体表示空文件
+                continue
+            
+            # 若是文件夹则递归
+            if ctype == 'folder':
+                self._build_recursive_structure(item, file_type, child, full_path)
+                
+            elif ctype == 'file_tsk':
+                sub_items = load_tsk_beta(
+                    self.fileoperations.opened_file['data'][offset:offset+size],
+                    name.split('.')[0],
+                    baseOffset=offset
+                )
+                # 确保 subItem 列表存在
+                if 'subItem' not in child:
+                    child['subItem'] = []
+                # 直接修改 child 字典中的 subItem
+                child['subItem'].clear()
+                child['subItem'].extend(sub_items.get('subItem', []))
+                
+                self._build_recursive_structure(item, ctype, child, full_path)
+                
+            elif ctype == 'file_nut':
+                sub_items = load_nut_beta(
+                    self.fileoperations.opened_file['data'][offset:offset+size],
+                    name,
+                    baseOffset=offset
+                )
+                # 确保 subItem 列表存在
+                if 'subItem' not in child:
+                    child['subItem'] = []
+                # 直接修改 child 字典中的 subItem
+                child['subItem'].clear()
+                child['subItem'].extend(sub_items.get('subItem', []))
+                
+                self._build_recursive_structure(item, ctype, child, full_path)
+                
+            elif ctype == 'file_mpc':
+                sub_items = load_mpc_beta(
+                    self.fileoperations.opened_file['data'][offset:offset+size],
+                    name,
+                    baseOffset=offset
+                )
+                # 确保 subItem 列表存在
+                if 'subItem' not in child:
+                    child['subItem'] = []
+                # 直接修改 child 字典中的 subItem
+                child['subItem'].clear()
+                child['subItem'].extend(sub_items.get('subItem', []))
+                
+                self._build_recursive_structure(item, ctype, child, full_path)
+                
             else:
-                # 否则，创建一个新的文件节点（常规文件或不在路径中被解析的 NUT 文件）
-                file_item = QTreeWidgetItem(parent_item_for_file, [display_name])
-                subfile['type'] = subfile_extension if subfile_extension in ['nut', 'tsk', 'dds'] else 'file'
-                file_item.setData(0, Qt.UserRole, subfile)
+                ext = name.split('.')[-1].lower() if '.' in name else ''
+                if child.get('subItem'):
+                    # 已经是树结构，直接递归
+                    self._build_recursive_structure(item, ext or ctype, child, full_path)
             
-
-
-            # 4. 检查是否为容器文件，如果是，则进行递归解析
-            if is_container :
-                if subfile['filesize'] == 0:
-                    continue           # 跳过空文件
-                
-                # 读取子文件数据
-                try:
-                    # 假设 self.fileoperations.opened_file['data'] 存储了整个原始文件数据
-                    # 如果这个方法是在 AppController 中调用的，那么这个数据应该可以访问
-                    file_data = self.fileoperations.opened_file['data'][subfile['fileoff']:subfile['fileoff'] + subfile['filesize']]
-                except Exception as e:
-                    print(f"读取内嵌文件 {subfile_filename} 数据失败: {e}")
-                    continue # 跳过无法读取的文件
-                    
-                # 解析子文件
-                if subfile_extension == 'nut':
-                    sub_info = load_nut(file_data, subfile_filename.split('.')[0])
-                elif subfile_extension == 'tsk':
-                    sub_info = load_tsk(file_data, subfile_filename.split('.')[0])
-                
-                # 递归调用自身，将子文件的内容挂载到当前 file_item 下
-                if sub_info:
-                    #subfile['subfiles_info'] = sub_info
-                    data = file_item.data(0, Qt.UserRole)
-                    data.update({
-                        'info': {
-                            'file_nums': sub_info.get('file_nums', 0),
-                            'subfiles_info': sub_info.get('subfiles_info', [])
-                        }
-                    })
-                    file_item.setData(0, Qt.UserRole, data)
-                    
-                    # 注意：这里需要确保文件项在递归前已经设置了子节点，才能成功展开
-                    self._build_recursive_structure(file_item, subfile_extension, sub_info, subfile['fileoff'])
-                    # 在添加完子结构后，设置展开状态
-                    file_item.setExpanded(True)
-                    
+            item.setData(0, Qt.UserRole, child)
