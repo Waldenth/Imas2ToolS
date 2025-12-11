@@ -15,6 +15,7 @@ from core.nuttool import *
 from core.imagetool import *
 from core.tsktool import *
 from io import BytesIO
+from PyQt5.QtCore import QTimer
 
 
 class AppController(QMainWindow):
@@ -313,8 +314,6 @@ class AppController(QMainWindow):
             export_all_files_action.triggered.connect(lambda: self.handle_export_all_recursive(item_meta))
             menu.addAction(export_all_files_action)
             
-            
-            
             if item_meta.get('type') not in ['file_nut', 'file_tsk', 'file_mpc','folder']:
                 export_all_action.setEnabled(False)          
                 export_all_files_action.setEnabled(False)
@@ -422,7 +421,6 @@ class AppController(QMainWindow):
              
     def handle_export_all(self, item_meta: dict):
         """异步处理 Export All 菜单点击事件，并转发给核心逻辑"""
-        from PyQt5.QtCore import QTimer
 
         if item_meta is None:
             self.statusbar.showMessage("No item metadata available for Export All.")
@@ -491,11 +489,11 @@ class AppController(QMainWindow):
             QTimer.singleShot(10, process_next)
 
         process_next()
-            
-            
+    
     
     def handle_export_all_recursive(self, item_meta: dict):
-        """处理 Export All Recursive 菜单点击事件，并转发给核心逻辑"""
+        """异步处理 Export All Recursive 菜单点击事件，每个文件导出时更新 statusbar"""
+
         if item_meta is None:
             self.statusbar.showMessage("No item metadata available for Export All Recursive.")
             return
@@ -521,58 +519,106 @@ class AppController(QMainWindow):
         
         self._export_file_info = export_file_info
         self._export_json_path = os.path.join(dir_path, "{}.json".format(item_meta.get('name')))
+        self._export_count = 0
+        self._export_total = 0
         
-        def export_recursive(subitems, current_dir):
+        # 先计算总文件数
+        def count_files(subitems):
+            count = 0
+            for subitem in subitems:
+                ctype = subitem.get('type', 'file')
+                size = subitem.get('size', 0)
+                
+                if ctype == 'folder':
+                    count += count_files(subitem.get('subItem', []))
+                elif ctype not in ['file_mpc', 'file_tsk', 'file_nut'] and size > 0:
+                    count += 1
+                elif ctype in ['file_mpc', 'file_tsk', 'file_nut']:
+                    count += count_files(subitem.get('subItem', []))
+            return count
+        
+        self._export_total = count_files(item_meta.get('subItem', []))
+        
+        # 创建文件队列
+        def build_queue(subitems, current_dir, queue):
             for subitem in subitems:
                 name = subitem.get('name')
                 size = subitem.get('size', 0)
                 offset = subitem.get('offset', 0)
                 ctype = subitem.get('type', 'file')
-
                 target_path = os.path.join(current_dir, name)
 
                 if ctype == 'folder':
                     os.makedirs(target_path, exist_ok=True)
-                    export_recursive(subitem.get('subItem', []), target_path)
+                    build_queue(subitem.get('subItem', []), target_path, queue)
+                elif ctype in ['file_mpc', 'file_tsk', 'file_nut']:
+                    os.makedirs(target_path, exist_ok=True)
+                    build_queue(subitem.get('subItem', []), target_path, queue)
                 else:
-                    if size == 0:
-                        continue
-                    file_data = self.fileoperations.opened_file["data"][offset:offset+size]
-                    
-                    if ctype in ['file_mpc', 'file_tsk', 'file_nut']:
-                        target_file_path = os.path.join(current_dir, name)
-                        os.makedirs(os.path.dirname(target_file_path), exist_ok=True)
-                        export_recursive(subitem.get('subItem', []), target_file_path)
-                        continue
-                        
-                    
-                    if name.endswith(".dds"):
-                        name = name[:-4] + ".png"
-                        height = subitem.get('height')
-                        width = subitem.get('width')
-                        texFmt = subitem.get('texFmt')
-                        try:
-                            file_data = dds_to_png(file_data, texFmt, width, height)
-                        except Exception as e:
-                            QMessageBox.warning(None, "Error", f"Failed to convert DDS to image: {str(e)}")
-                            continue
-                    target_file_path = os.path.join(current_dir, name)
-                    os.makedirs(os.path.dirname(target_file_path), exist_ok=True)
-                    FileOperations.export_file_logic(file_data, target_file_path)
-                    self._export_file_info["file_list"].append({
-                        name: target_file_path,
-                        "offset": offset,
-                        "size": size,
-                    })
-
-        export_recursive(item_meta.get('subItem', []), dir_path)
-        FileOperations.save_json_to_file(self._export_file_info, self._export_json_path)
-        self.statusbar.showMessage(f"Export All Recursive completed to directory: {dir_path}")
-    
-      
-    
-    
+                    if size > 0:
+                        queue.append({
+                            'name': name,
+                            'size': size,
+                            'offset': offset,
+                            'height': subitem.get('height'),
+                            'width': subitem.get('width'),
+                            'texFmt': subitem.get('texFmt'),
+                            'target_path': target_path
+                        })
         
+        export_queue = []
+        build_queue(item_meta.get('subItem', []), dir_path, export_queue)
+        
+        def process_next():
+            if not export_queue:
+                FileOperations.save_json_to_file(self._export_file_info, self._export_json_path)
+                self.statusbar.showMessage(f"Export All Recursive completed to directory: {dir_path}, total {self._export_count} files.")
+                return
+            
+            file_item = export_queue.pop(0)
+            name = file_item['name']
+            size = file_item['size']
+            offset = file_item['offset']
+            target_path = file_item['target_path']
+            
+            try:
+                file_data = self.fileoperations.opened_file["data"][offset:offset+size]
+                
+                if name.endswith(".dds"):
+                    new_name = name[:-4] + ".png"
+                    height = file_item['height']
+                    width = file_item['width']
+                    texFmt = file_item['texFmt']
+                    try:
+                        file_data = dds_to_png(file_data, texFmt, width, height)
+                        target_path = target_path[:-4] + ".png"
+                        name = new_name
+                    except Exception as e:
+                        QMessageBox.warning(None, "Error", f"Failed to convert DDS to image: {str(e)}")
+                        self._export_count += 1
+                        self.statusbar.showMessage(f"Failed: {name}, {self._export_count}/{self._export_total}")
+                        QTimer.singleShot(10, process_next)
+                        return
+                
+                os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                FileOperations.export_file_logic(file_data, target_path)
+                self._export_file_info["file_list"].append({
+                    name: target_path,
+                    "offset": offset,
+                    "size": size,
+                })
+                self._export_count += 1
+                self.statusbar.showMessage(f"Exported: {name}, {self._export_count}/{self._export_total}")
+            except Exception as e:
+                self._export_count += 1
+                self.statusbar.showMessage(f"Error exporting {name}: {str(e)}")
+            
+            QTimer.singleShot(10, process_next)
+        
+        process_next()
+              
+    
+    
     def display_texture(self, image_meta):
         offset = image_meta["offset"]
         size = image_meta["size"]
