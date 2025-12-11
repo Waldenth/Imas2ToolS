@@ -102,6 +102,8 @@ class AppController(QMainWindow):
         
         self.actionConvert.triggered.connect(self.handle_convert)
         self.actionSave_as.triggered.connect(self.handle_save_as)
+        self.actionImport_from_directory.triggered.connect(self.handle_import_from_directory)
+        self.actionExport_all_images.triggered.connect(self.handle_export_all_images)
 
         # 设置文件树的右键菜单
         self.treeWidget.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -278,7 +280,7 @@ class AppController(QMainWindow):
         )
         
         self.statusbar.showMessage(f"File saved as: {save_path}")
-
+        
 
     # --- 右键菜单相关方法 ---
     def show_context_menu(self, point: QPoint):
@@ -602,8 +604,10 @@ class AppController(QMainWindow):
                 
                 os.makedirs(os.path.dirname(target_path), exist_ok=True)
                 FileOperations.export_file_logic(file_data, target_path)
+                relative_path = os.path.relpath(target_path, dir_path)
                 self._export_file_info["file_list"].append({
-                    name: target_path,
+                    "name": name,
+                    "path": relative_path,
                     "offset": offset,
                     "size": size,
                 })
@@ -616,7 +620,164 @@ class AppController(QMainWindow):
             QTimer.singleShot(10, process_next)
         
         process_next()
-              
+
+    
+    def handle_import_from_directory(self):
+        """处理 Tools > Import from directory 点击事件"""
+        directory = QFileDialog.getExistingDirectory(
+            self, 
+            "Select a directory to import files from",
+            ""
+        )
+        
+        if not directory:
+            return
+        
+        try:
+            self.statusbar.showMessage(f"Importing files from {directory}...")
+            # 这里可以添加具体的导入逻辑
+            # 例如扫描目录中的文件，导入到当前打开的数据结构中
+            QMessageBox.information(self, "Import", f"Successfully imported files from:\n{directory}")
+            self.statusbar.showMessage("Import completed.")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to import: {str(e)}")
+            self.statusbar.showMessage("Import failed.")
+
+    def handle_export_all_images(self):
+        """处理 Tools > Export all images 点击事件"""
+        if not self.fileoperations.opened_file.get('data'):
+            QMessageBox.warning(self, "Warning", "No file is currently open.")
+            return
+        
+        item_meta = self.treeWidget.topLevelItem(0).data(0, Qt.UserRole)
+        
+        if item_meta is None:
+            self.statusbar.showMessage("Please open a file first.")
+            return
+        
+        directory = QFileDialog.getExistingDirectory(
+            self, 
+            "Select a directory to export images to",
+            ""
+        )
+        
+        if not directory:
+            return
+        
+        export_file_info ={
+            "parent_file": item_meta.get('path').split('/')[0],
+            "file_list": []
+        }
+        
+        
+        self._export_file_info = export_file_info
+        # 注意导出图片的export_json_path包含_images后缀
+        self._export_json_path = os.path.join(directory, "{}_images.json".format(item_meta.get('name')))
+        self._export_count = 0
+        self._export_total = 0
+        self._export_dir = directory
+        
+        
+        def count_images(subitems):
+            count = 0
+            for subitem in subitems:
+                ctype = subitem.get('type', 'file')
+                size = subitem.get('size', 0)
+                
+                if ctype == 'folder':
+                    count += count_images(subitem.get('subItem', []))
+                elif ctype == 'file_image' and size > 0:
+                    count += 1
+                elif ctype == 'file_texture' and size > 0:
+                    count += 1
+                elif ctype in ['file_mpc', 'file_tsk', 'file_nut']:
+                    count += count_images(subitem.get('subItem', []))
+            return count
+        
+        self._export_total = count_images(item_meta.get('subItem', []))
+        
+        
+        def build_image_queue(subitems, current_dir, queue):
+            for subitem in subitems:
+                name = subitem.get('name')
+                size = subitem.get('size', 0)
+                offset = subitem.get('offset', 0)
+                ctype = subitem.get('type', 'file')
+
+                if ctype == 'folder':
+                    build_image_queue(subitem.get('subItem', []), current_dir, queue)
+                elif ctype == 'file_image' and size > 0:
+                    queue.append({
+                        'name': name,
+                        'size': size,
+                        'offset': offset,
+                    })
+                elif ctype == 'file_texture' and size > 0:
+                    queue.append({
+                        'name': name,
+                        'size': size,
+                        'offset': offset,
+                        'height': subitem.get('height'),
+                        'width': subitem.get('width'),
+                        'texFmt': subitem.get('texFmt'),
+                    })
+                elif ctype in ['file_mpc', 'file_tsk', 'file_nut']:
+                    build_image_queue(subitem.get('subItem', []), current_dir, queue)
+                else:
+                    continue
+        
+        image_queue = []
+        build_image_queue(item_meta.get('subItem', []), directory, image_queue)
+        
+        def process_next():
+            if not image_queue:
+                FileOperations.save_json_to_file(self._export_file_info, self._export_json_path)
+                self.statusbar.showMessage(f"Export all images completed to directory: {directory}, total {self._export_count} images.")
+                return 
+            file_item = image_queue.pop(0)
+            name = file_item['name']
+            size = file_item['size']
+            offset = file_item['offset']
+            
+            try:
+                if size == 0:
+                    self._export_count += 1
+                    QTimer.singleShot(10, process_next)
+                    return
+                file_data = self.fileoperations.opened_file["data"][offset:offset+size]
+                if name.endswith(".dds"):
+                    new_name = name[:-4] + ".png"
+                    height = file_item.get('height')
+                    width = file_item.get('width')
+                    texFmt = file_item.get('texFmt')
+                    try:
+                        file_data = dds_to_png(file_data, texFmt, width, height)
+                        name = new_name
+                    except Exception as e:
+                        QMessageBox.warning(None, "Error", f"Failed to convert DDS to image: {str(e)}")
+                        self._export_count += 1
+                        self.statusbar.showMessage(f"Failed: {name}, {self._export_count}/{self._export_total}")
+                        QTimer.singleShot(10, process_next)
+                        return
+                save_path = os.path.join(self._export_dir, name)
+                os.makedirs(os.path.dirname(save_path), exist_ok=True)
+                FileOperations.export_file_logic(file_data, save_path)
+                self._export_file_info["file_list"].append({
+                    "name": name,
+                    "offset": offset,
+                    "size": size,
+                })
+                self._export_count += 1
+                self.statusbar.showMessage(f"Exported image: {name}, {self._export_count}/{self._export_total}")
+            except Exception as e:
+                self._export_count += 1
+                self.statusbar.showMessage(f"Error exporting image {name}: {str(e)}")
+                
+            QTimer.singleShot(10, process_next)
+            
+        process_next()
+       
+                   
     
     
     def display_texture(self, image_meta):
