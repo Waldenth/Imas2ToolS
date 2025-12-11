@@ -708,22 +708,24 @@ class AppController(QMainWindow):
         
         def build_image_queue(subitems, current_dir, queue):
             for subitem in subitems:
-                name = subitem.get('name')
+                #name = subitem.get('name')
                 size = subitem.get('size', 0)
                 offset = subitem.get('offset', 0)
                 ctype = subitem.get('type', 'file')
+                path_name = subitem.get('path').replace('/','+').replace('\\','+')
+                
 
                 if ctype == 'folder':
                     build_image_queue(subitem.get('subItem', []), current_dir, queue)
                 elif ctype == 'file_image' and size > 0:
                     queue.append({
-                        'name': name,
+                        'name': path_name,
                         'size': size,
                         'offset': offset,
                     })
                 elif ctype == 'file_texture' and size > 0:
                     queue.append({
-                        'name': name,
+                        'name': path_name,
                         'size': size,
                         'offset': offset,
                         'height': subitem.get('height'),
