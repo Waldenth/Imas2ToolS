@@ -467,11 +467,13 @@ class AppController(QMainWindow):
                 QTimer.singleShot(10, process_next)
                 return
             file_data = self.fileoperations.opened_file["data"][offset:offset+size]
+            # 记录导出信息, png/dds均以原始名称记录
             self._export_file_info["file_list"].append({
                 "name": file_name,
                 "offset": offset,
                 "size": size,
             })
+            
             if file_name.endswith(".dds"):
                 file_name = file_name[:-4] + ".png"
                 height = subfile.get('height')
@@ -586,25 +588,32 @@ class AppController(QMainWindow):
             try:
                 file_data = self.fileoperations.opened_file["data"][offset:offset+size]
                 
+                png_name = name
+                
                 if name.endswith(".dds"):
-                    new_name = name[:-4] + ".png"
+                    png_name = name[:-4] + ".png"
                     height = file_item['height']
                     width = file_item['width']
                     texFmt = file_item['texFmt']
                     try:
                         file_data = dds_to_png(file_data, texFmt, width, height)
                         target_path = target_path[:-4] + ".png"
-                        name = new_name
                     except Exception as e:
                         QMessageBox.warning(None, "Error", f"Failed to convert DDS to image: {str(e)}")
                         self._export_count += 1
-                        self.statusbar.showMessage(f"Failed: {name}, {self._export_count}/{self._export_total}")
+                        self.statusbar.showMessage(f"Failed: {png_name}, {self._export_count}/{self._export_total}")
                         QTimer.singleShot(10, process_next)
                         return
                 
                 os.makedirs(os.path.dirname(target_path), exist_ok=True)
                 FileOperations.export_file_logic(file_data, target_path)
                 relative_path = os.path.relpath(target_path, dir_path)
+                
+                # 原文件为dds,导出为png, 但是记录为dds
+                if name.endswith(".dds"):
+                    relative_path = relative_path[:-4] + ".dds"
+                
+                # 记录导出信息, png/dds均以原始名称记录
                 self._export_file_info["file_list"].append({
                     "name": name,
                     "path": relative_path,
@@ -745,6 +754,14 @@ class AppController(QMainWindow):
                     QTimer.singleShot(10, process_next)
                     return
                 file_data = self.fileoperations.opened_file["data"][offset:offset+size]
+                
+                # 记录导出信息, png/dds均以原始名称记录
+                self._export_file_info["file_list"].append({
+                    "name": name,
+                    "offset": offset,
+                    "size": size,
+                })
+                
                 if name.endswith(".dds"):
                     new_name = name[:-4] + ".png"
                     height = file_item.get('height')
@@ -762,11 +779,6 @@ class AppController(QMainWindow):
                 save_path = os.path.join(self._export_dir, name)
                 os.makedirs(os.path.dirname(save_path), exist_ok=True)
                 FileOperations.export_file_logic(file_data, save_path)
-                self._export_file_info["file_list"].append({
-                    "name": name,
-                    "offset": offset,
-                    "size": size,
-                })
                 self._export_count += 1
                 self.statusbar.showMessage(f"Exported image: {name}, {self._export_count}/{self._export_total}")
             except Exception as e:
