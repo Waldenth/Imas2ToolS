@@ -708,11 +708,19 @@ class AppController(QMainWindow):
         
         def build_image_queue(subitems, current_dir, queue):
             for subitem in subitems:
+                if subitem is None:
+                    continue
                 #name = subitem.get('name')
                 size = subitem.get('size', 0)
+                if size == 0:
+                    continue
                 offset = subitem.get('offset', 0)
                 ctype = subitem.get('type', 'file')
-                path_name = subitem.get('path').replace('/','+').replace('\\','+')
+                path_name = subitem.get('path')
+                if path_name is None:
+                    continue
+                else:
+                    path_name = path_name.replace('/','+').replace('\\','+')
                 
 
                 if ctype == 'folder':
