@@ -128,6 +128,8 @@ def create_raw_image(width, height, data):
         return image
     
     elif channel_num == 4:
+        # image_data [A R G B]
+        # Convert ARGB to RGBA
         rgba_data = image_data.reshape((height, width, 4))
         rgba_data = rgba_data[:, :, [1, 2, 3, 0]]
         image = Image.fromarray(rgba_data, 'RGBA')
@@ -146,7 +148,7 @@ def a1r5g5b5_to_rgba8888_conversion(rgb565_bytes, width, height, is_big_endian=T
         # 读取 16 位无符号整数数据
         data_16bit = np.frombuffer(rgb565_bytes, dtype=np.dtype(dtype_str))
     except ValueError as e:
-        print(f"字节长度错误！期望: {width * height * 2} 字节, 实际: {len(rgb565_bytes)} 字节")
+        print(f"Expected data size: {width * height * 2} bytes, but got {len(rgb565_bytes)} bytes.")
         raise e
     
     # 2. 提取 A1、R5、G5、B5 分量
@@ -178,6 +180,41 @@ def a1r5g5b5_to_rgba8888_conversion(rgb565_bytes, width, height, is_big_endian=T
     
     # 5. 重塑为图像的 (height, width, 4) 形状
     return rgba8888_array.reshape((height, width, 4))
+
+
+def rgba8888_to_a1r5g5b5_conversion(rgba_array, width, height, is_big_endian=True):
+    """
+    将 RGBA8888 格式的 numpy 数组转换为 A1R5G5B5 格式的原始字节数据
+    
+    参数:
+        rgba_array: numpy 数组，形状为 (height, width, 4)，数据类型为 uint8
+        is_big_endian: 是否使用大端字节序，默认 True
+    
+    返回:
+        bytes: A1R5G5B5 格式的原始字节数据
+    """
+    # 1. 提取 RGBA 分量
+    R8 = rgba_array[:, :, 0]
+    G8 = rgba_array[:, :, 1]
+    B8 = rgba_array[:, :, 2]
+    A8 = rgba_array[:, :, 3]
+    
+    # 2. 压缩到 5 位和 1 位
+    R5 = (R8 >> 3).astype(np.uint16)  # 8位 -> 5位 (取高5位)
+    G5 = (G8 >> 3).astype(np.uint16)  # 8位 -> 5位 (取高5位)
+    B5 = (B8 >> 3).astype(np.uint16)  # 8位 -> 5位 (取高5位)
+    A1 = (A8 >> 7).astype(np.uint16)  # 8位 -> 1位 (>= 128 为 1)
+    
+    # 3. 组合成 16 位数据 (A1R5G5B5 格式)
+    # A1: 第15位, R5: 14-10位, G5: 9-5位, B5: 4-0位
+    data_16bit = (A1 << 15) | (R5 << 10) | (G5 << 5) | B5
+    
+    # 4. 转换为指定字节序
+    dtype_str = '>u2' if is_big_endian else '<u2'
+    data_16bit = data_16bit.astype(np.dtype(dtype_str))
+    
+    # 5. 返回字节数据
+    return data_16bit.tobytes()
 
 
 def dds_to_png(dds_data, texFmt, width, height):
