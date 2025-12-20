@@ -346,17 +346,30 @@ class AppController(QMainWindow):
         if not replaced_file_path:
             return None
         
-        replace_file = open(replaced_file_path, 'rb').read()
-        need_refresh = False
-        if replaced_file_path.endswith(".dds"):
+        if '_RAW.dds' in item_meta.get('name','') :
             need_refresh = True
-            replace_file = replace_file[128:]  # 去掉 DDS 头部，保留原始纹理数据
+            try:
+                self.fileoperations.replace_texture_logic(
+                    replaced_file_path,
+                    item_meta
+                )
+                success = True
+            except Exception as e:
+                QMessageBox.warning(None, "Error", f"Failed to replace texture: {str(e)}")
+                return
+        else:
+            replace_file = open(replaced_file_path, 'rb').read()
+            need_refresh = False
+            if replaced_file_path.endswith(".dds"):
+                need_refresh = True
+                replace_file = replace_file[128:]  # 去掉 DDS 头部，保留原始纹理数据
+                    
+            if item_meta.get('size', 0) != len(replace_file):
+                QMessageBox.warning(None, "Error", "The size of the replacement file does not match the original file.")
+                return
+            
+            success = self.fileoperations.replace_file_logic(item_meta, replace_file)
         
-        if item_meta.get('size', 0) != len(replace_file):
-            QMessageBox.warning(None, "Error", "The size of the replacement file does not match the original file.")
-            return
-        
-        success = self.fileoperations.replace_file_logic(item_meta, replace_file)
         if success:
             self.statusbar.showMessage(f"Replace successful for: {item_meta.get('name')}")
             if need_refresh:
