@@ -96,9 +96,9 @@ class AppController(QMainWindow):
         self.treeWidget.itemClicked.connect(self.handle_tree_item_click)
         
         # 连接主菜单 Action
-        self.actionOpen_mpc.triggered.connect(lambda: self.handle_open_file("mpc"))
-        self.actionOpen_tsk.triggered.connect(lambda: self.handle_open_file("tsk"))
-        self.actionOpen_nut.triggered.connect(lambda: self.handle_open_file("nut"))
+        self.actionOpen_mpc.triggered.connect(lambda: self.handle_open_file(file_type = "mpc"))
+        self.actionOpen_tsk.triggered.connect(lambda: self.handle_open_file(file_type = "tsk"))
+        self.actionOpen_nut.triggered.connect(lambda: self.handle_open_file(file_type = "nut"))
         
         self.actionConvert.triggered.connect(self.handle_convert)
         self.actionSave_as.triggered.connect(self.handle_save_as)
@@ -155,35 +155,37 @@ class AppController(QMainWindow):
         self.statusbar.showMessage(msg)
 
 
-    def handle_open_file(self, file_type: str):
+    def handle_open_file(self, file_type: str, file_path: str = None):
         """
         弹出文件选择框，并根据 file_type 过滤文件类型
         """
-        
-        # 定义文件过滤器字典
-        filters = {
-            "mpc": "MPC Files (*.mpc)",
-            "tsk": "TSK Files (*.tsk)",
-            "nut": "NUT Files (*.nut)"
-        }
-        
-        # 基础过滤器
-        base_filter = filters.get(file_type, "")
+        if file_path is None:
+            # 定义文件过滤器字典
+            filters = {
+                "mpc": "MPC Files (*.mpc)",
+                "tsk": "TSK Files (*.tsk)",
+                "nut": "NUT Files (*.nut)"
+            }
+            
+            # 基础过滤器
+            base_filter = filters.get(file_type, "")
 
-        # 拼接全部文件过滤器
-        if base_filter:
-            file_filter = f"{base_filter};;All Files (*)"
+            # 拼接全部文件过滤器
+            if base_filter:
+                file_filter = f"{base_filter};;All Files (*)"
+            else:
+                file_filter = "All Files (*)"
+            
+            
+            # 弹出文件选择框
+            file_name, selected_filter = QFileDialog.getOpenFileName(
+                self, 
+                f"Open .{file_type} File",      # 窗口标题
+                "",                             # 初始目录 (空字符串表示使用默认或上次目录)
+                file_filter                     # 文件过滤器
+            )
         else:
-            file_filter = "All Files (*)"
-        
-        
-        # 弹出文件选择框
-        file_name, selected_filter = QFileDialog.getOpenFileName(
-            self, 
-            f"Open .{file_type} File",      # 窗口标题
-            "",                             # 初始目录 (空字符串表示使用默认或上次目录)
-            file_filter                     # 文件过滤器
-        )
+            file_name = file_path
         
         if file_name:
             self.statusbar.showMessage(f"Loading {file_name}...")
