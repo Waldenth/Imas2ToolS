@@ -163,7 +163,7 @@ class AppController(QMainWindow):
             # 定义文件过滤器字典
             filters = {
                 "mpc": "MPC Files (*.mpc)",
-                "tsk": "TSK Files (*.tsk)",
+                "tsk": "TSK/S2D Files (*.tsk *.s2d)",
                 "nut": "NUT Files (*.nut)"
             }
             
@@ -194,8 +194,12 @@ class AppController(QMainWindow):
                     file_data = f.read()
                 
                 root_name = os.path.basename(file_name)
+                # s2d 也作为 tsk 处理, 但需要区分
+                if root_name.endswith('.s2d'):
+                    file_type = 's2d'
+                
                 loaded_info = None
-
+                
                 # 关键：清空旧数据并存储新数据
                 self.fileoperations.opened_file = {'type': file_type, 'data': file_data, 'name': root_name}
 
@@ -209,6 +213,11 @@ class AppController(QMainWindow):
                     self.tsk_file_info = load_tsk_beta(file_data, root_name.split('.')[0])
                     loaded_info = self.tsk_file_info
 
+                elif file_type == 's2d':
+                    self.tsk_file_info = load_tsk_beta(file_data, root_name.split('.')[0])
+                    self.tsk_file_info['name'] = root_name.split('.')[0] + '.s2d'
+                    loaded_info = self.tsk_file_info
+                    
                 elif file_type == 'nut':
                     # TODO: NUT 文件解析逻辑
                     # 调用 nuttool 解析文件

@@ -148,7 +148,7 @@
     </action>
     <action name="actionOpen_tsk">
       <property name="text">
-        <string>Open TSK</string>
+        <string>Open TSK(S2D)</string>
       </property>
     </action>
     <action name="actionOpen_nut">

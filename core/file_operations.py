@@ -71,6 +71,8 @@ class FileOperations:
     @staticmethod
     def export_file_logic(file_data: bytes, export_path: str):
         """导出文件"""
+        if export_path is None or export_path == '':
+            return
         with open(export_path, 'wb') as f:
             f.write(file_data)
     
