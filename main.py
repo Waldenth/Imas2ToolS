@@ -8,7 +8,10 @@ if __name__ == "__main__":
     open_file_path = None
     if len(sys.argv) > 1:
         try_open_file = sys.argv[1]
-        if try_open_file.lower().endswith('.mpc') or try_open_file.lower().endswith('.nut') or try_open_file.lower().endswith('.tsk'):
+        if try_open_file.lower().endswith('.mpc') \
+            or try_open_file.lower().endswith('.nut') \
+            or try_open_file.lower().endswith('.tsk') \
+            or try_open_file.lower().endswith('.s2d'):
             open_file_path = try_open_file
 
     app = QApplication(sys.argv)
