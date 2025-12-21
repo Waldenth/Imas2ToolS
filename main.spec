@@ -25,7 +25,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='main',
+    name='Imas2ToolS',
     debug=False,
     bootloader_ignore_signals=False,
     strip=True,
