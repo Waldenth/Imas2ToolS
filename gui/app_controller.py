@@ -1,6 +1,7 @@
 # gui/app_controller.py
 
 import os
+import traceback
 from PyQt5.QtWidgets import QMainWindow, QMenu, QAction, QTreeWidgetItem,\
     QFileDialog, QMessageBox
 from PyQt5 import uic
@@ -234,6 +235,7 @@ class AppController(QMainWindow):
             except Exception as e:
                 self.statusbar.showMessage(f"Error loading file: {e}")
                 print(f"Error loading file: {e}")
+                traceback.print_exc()
         else:
             self.statusbar.showMessage(f"Open .{file_type} canceled.")
 

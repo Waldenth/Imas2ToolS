@@ -37,6 +37,11 @@ class FileOperations:
             width = image.width
             rgba_data = np.asarray(image, dtype=np.uint8)
             
+            # RGB 图片补全 Alpha 通道（完全不透明）
+            if rgba_data.shape[-1] == 3:
+                alpha_channel = np.full((height, width, 1), 255, dtype=np.uint8)
+                rgba_data = np.concatenate((rgba_data, alpha_channel), axis=-1)
+            
             item_size = item_meta['size']
             
             if item_size == rgba_data.size:

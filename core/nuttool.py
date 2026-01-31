@@ -103,9 +103,17 @@ def load_nut_beta(data: bytes, nutfileName: str = "nut", baseOffset : int =0):
 
 def load_nut(data, nutfileName="nut"):
     f = io.BytesIO(data)
-    magic = f.read(4).decode('ascii')
+    try:
+        magic = f.read(4).decode('ascii')
+    except UnicodeDecodeError:
+        magic = "ERROR"
     if magic != "NTP3":
-        raise Exception("Invalid NUT file")
+        return {
+            "file_size": len(data),
+            "file_nums": 0,
+            "subfiles_info": []
+        }
+        #raise Exception("Invalid NUT file")
     version = read_short(f)
     texCount = read_short(f)
     f.seek(0x10, 0) # ABS
