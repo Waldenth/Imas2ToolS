@@ -3,6 +3,7 @@
 import os
 import traceback
 import json
+import subprocess
 from PyQt5.QtWidgets import QMainWindow, QMenu, QAction, QTreeWidgetItem,\
     QFileDialog, QMessageBox
 from PyQt5 import uic
@@ -121,6 +122,7 @@ class AppController(QMainWindow):
         
         self.actionCreateSCB.triggered.connect(self.handle_convert_scb)
         self.actionExtractSCB.triggered.connect(self.handle_extract_scb)
+        self.actionrewriteXMB.triggered.connect(self.handle_rewrite_xmb_file)
         self.actionSave_as.triggered.connect(self.handle_save_as)
         self.actionImport_from_directory.triggered.connect(self.handle_import_from_directory)
         self.actionExport_all_images.triggered.connect(self.handle_export_all_images)
@@ -324,7 +326,10 @@ class AppController(QMainWindow):
                 self.statusbar.showMessage(
                     f"SCB conversion completed: {self._json_count}/{self._json_total}"
                 )
-                QMessageBox.information(None, "Done", f"SCB conversion completed: {self._json_count}/{self._json_total}\nOutput directory: {output_dir}")
+                reply = QMessageBox.question(None, "Done", f"SCB conversion completed: {self._json_count}/{self._json_total}\nOutput directory: {output_dir}\nOpen the output directory?", QMessageBox.Yes | QMessageBox.No)
+                if reply == QMessageBox.Yes:
+                    subprocess.Popen(["explorer", os.path.abspath(output_dir)])
+
                 return
             json_filename = self._json_queue.pop(0)
             try:
@@ -377,7 +382,9 @@ class AppController(QMainWindow):
                 self.statusbar.showMessage(
                     f"SCB export completed: {self._scb_count}/{self._scb_total}"
                 )
-                QMessageBox.information(None, "Done", f"SCB export completed: {self._scb_count}/{self._scb_total}\nOutput directory: {output_dir}")
+                reply = QMessageBox.question(None, "Done", f"SCB export completed: {self._scb_count}/{self._scb_total}\nOutput directory: {output_dir}\nOpen the output directory?", QMessageBox.Yes | QMessageBox.No)
+                if reply == QMessageBox.Yes:
+                    subprocess.Popen(["explorer", os.path.abspath(output_dir)])
                 return
             scb_filename = self._scb_queue.pop(0)
             try:
@@ -439,7 +446,7 @@ class AppController(QMainWindow):
             name = item_meta.get('name', '')
             if isinstance(name, str) and name.lower().endswith('.xmb'):
                 rewrite_action = QAction("Rewrite", self)
-                rewrite_action.triggered.connect(lambda: self.handle_rewrite(item_meta))
+                rewrite_action.triggered.connect(lambda: self.handle_rewrite_xmb_item(item_meta))
                 menu.addAction(rewrite_action)
 
             # 导出选项
@@ -469,7 +476,7 @@ class AppController(QMainWindow):
         else:
             pass
 
-    def handle_rewrite(self, item_meta: dict):
+    def handle_rewrite_xmb_item(self, item_meta: dict):
         """处理 Rewrite 菜单点击事件（xmb专用）"""
         if item_meta is None:
             self.statusbar.showMessage("No item metadata available for Rewrite.")
@@ -497,37 +504,85 @@ class AppController(QMainWindow):
         xmb_offset = item_meta['offset']
         xmb_size = item_meta['size']
         new_opened_file_data = bytearray(self.fileoperations.opened_file['data'])
+        
+        xmb_data = new_opened_file_data[xmb_offset:xmb_offset+xmb_size]
+        
         try:
-            xmb_data = new_opened_file_data[xmb_offset:xmb_offset+xmb_size]
-            for item in json_data:
-                offset = item["_offset"]
-                text = item["translate"]
-                size = item["_size"]
-                convertText = ""
-                
-                for char in text:
-                    if self.cb_use_dict.isChecked():
-                        if char in self.charMap['import']:
-                            convertText += self.charMap['import'][char]
-                        else:
-                            convertText += char
-                    else:
-                        convertText += char
-                utf16be_text = convertText.encode('utf-16be')
-                text_size = len(utf16be_text)
-                if text_size > size:
-                    raise ValueError(f"Rewritten text size exceeds original size at offset {offset}. Original size: {size}, New size: {text_size}, Text: {text}")
-                
-                padding = b'\x00' * (size - text_size)
-                xmb_data[offset:offset+size] = utf16be_text + padding
+            xmb_data = self.fileoperations.rewrite_xmb_logic(
+                xmb_data, 
+                json_data, 
+                self.charMap['import'], 
+                self.cb_use_dict.isChecked())
         except Exception as e:
             QMessageBox.warning(None, "Error", f"Failed to rewrite XMB: {str(e)}")
-            return       
+            return   
         
         new_opened_file_data[xmb_offset:xmb_offset+xmb_size] = xmb_data
         self.fileoperations.opened_file['data'] = bytes(new_opened_file_data)
         self.statusbar.showMessage(f"Rewrite successful for: {item_meta.get('name')}")
         
+    
+    def handle_rewrite_xmb_file(self):
+        """处理主菜单 Rewrite XMB 点击事件"""
+
+        if not self.cb_use_dict.isChecked():
+            reply = QMessageBox.question(None, "Warning", "You Don't have Use Dict enabled. The rewritten XMB may not be correct. Proceed?", QMessageBox.Ok | QMessageBox.Cancel)
+            if reply != QMessageBox.Ok:
+                return
+        
+        json_filenames, _ = QFileDialog.getOpenFileNames(
+            self,
+            "Select JSON Files to Rewrite XMB",
+            "",
+            "JSON Files (*.json);;All Files (*)"
+        )
+        
+        if not json_filenames:
+            return
+        
+        json_file_dir = os.path.dirname(json_filenames[0])
+        output_dir = os.path.join(json_file_dir, "output_xmb")
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        self._json_queue = list(json_filenames)
+        self._json_total = len(json_filenames)
+        self._json_count = 0
+        
+        def process_next():
+            if not self._json_queue:
+                self.statusbar.showMessage(
+                    f"XMB rewrite completed: {self._json_count}/{self._json_total}"
+                )
+                reply = QMessageBox.question(None, "Done", f"XMB rewrite completed: {self._json_count}/{self._json_total}\nOutput directory: {output_dir}\nOpen the output directory?", QMessageBox.Yes | QMessageBox.No)
+                if reply == QMessageBox.Yes:
+                    subprocess.Popen(["explorer", os.path.abspath(output_dir)])
+                return
+            json_filename = self._json_queue.pop(0)
+            try:
+                json_path = pathlib.Path(json_filename)
+                xmb_data = open(json_path.with_suffix('.xmb'), 'rb').read()
+                xmb_data = bytearray(xmb_data)
+                json_data = json.load(open(json_filename, 'r', encoding='utf-16'))
+                xmb_data = self.fileoperations.rewrite_xmb_logic(
+                    xmb_data,
+                    json_data,
+                    self.charMap['import'],
+                    self.cb_use_dict.isChecked()
+                )
+                output_xmb_path = os.path.join(output_dir, json_path.with_suffix('.xmb').name)
+                with open(output_xmb_path, 'wb') as f:
+                    f.write(xmb_data)
+
+                self._json_count += 1
+                self.statusbar.showMessage(
+                    f"Rewrote {json_path.name} to XMB ({self._json_count}/{self._json_total})"
+                )
+            except Exception as e:
+                QMessageBox.warning(None, "Error", str(e))
+            QTimer.singleShot(10, process_next)
+        
+        process_next()
+    
         
     def handle_replace(self, item_meta: dict):
         """处理 Replace 菜单点击事件，并转发给核心逻辑"""
