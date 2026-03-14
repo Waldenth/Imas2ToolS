@@ -2,6 +2,7 @@
 
 import os
 import traceback
+import json
 from PyQt5.QtWidgets import QMainWindow, QMenu, QAction, QTreeWidgetItem,\
     QFileDialog, QMessageBox
 from PyQt5 import uic
@@ -17,7 +18,10 @@ from core.imagetool import *
 from core.tsktool import *
 from io import BytesIO
 from PyQt5.QtCore import QTimer
-
+from core.scb_file_formats import scb
+from core.scb_file_formats import msg
+from core.scb_file_formats import scb0
+from core.scbtool import *
 
 class AppController(QMainWindow):
     def __init__(self):
@@ -32,7 +36,9 @@ class AppController(QMainWindow):
         self.nut_file_info = None # <-- 新增：存储解析后的 NUT 文件信息
         
         self.tsk_file_info = None # <-- 新增：存储解析后的 TSK 文件信息
-
+        
+        self.charMap = { 'import': {}, 'export': {} }  # 存储字符映射表
+        
         self.load_ui()
         self.init_logic()
 
@@ -49,14 +55,26 @@ class AppController(QMainWindow):
         # 构造图标文件的相对路径
         icon_file_name = "app_icon.png" 
         
+        import_char_txt = "import.txt"
+        export_char_txt = "export.txt"
+        
         # 假设 gui/app_controller.py 在 gui/ 目录下
         project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         icon_path = os.path.join(project_root, "resources", icon_file_name)
+        import_char_path = os.path.join(project_root, "resources", import_char_txt)
+        export_char_path = os.path.join(project_root, "resources", export_char_txt)
+        
         
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
         else:
             print(f"警告: 图标文件未找到，请检查路径: {icon_path}")
+
+        if os.path.exists(import_char_path):
+            self.charMap['import'] = FileOperations.load_char_map_from_file(import_char_path)
+
+        if os.path.exists(export_char_path):
+            self.charMap['export'] = FileOperations.load_char_map_from_file(export_char_path)
 
         # --- 2. 替换 QLabel 为 ScalableLabel 并修复样式丢失问题 ---
         
@@ -101,7 +119,8 @@ class AppController(QMainWindow):
         self.actionOpen_tsk.triggered.connect(lambda: self.handle_open_file(file_type = "tsk"))
         self.actionOpen_nut.triggered.connect(lambda: self.handle_open_file(file_type = "nut"))
         
-        self.actionConvert.triggered.connect(self.handle_convert)
+        self.actionCreateSCB.triggered.connect(self.handle_convert_scb)
+        self.actionExtractSCB.triggered.connect(self.handle_extract_scb)
         self.actionSave_as.triggered.connect(self.handle_save_as)
         self.actionImport_from_directory.triggered.connect(self.handle_import_from_directory)
         self.actionExport_all_images.triggered.connect(self.handle_export_all_images)
@@ -164,7 +183,7 @@ class AppController(QMainWindow):
             # 定义文件过滤器字典
             filters = {
                 "mpc": "MPC Files (*.mpc)",
-                "tsk": "TSK/S2D Files (*.tsk *.s2d)",
+                "tsk": "TSK/S2D/MOT Files (*.tsk *.s2d *.mot)",
                 "nut": "NUT Files (*.nut)"
             }
             
@@ -198,6 +217,8 @@ class AppController(QMainWindow):
                 # s2d 也作为 tsk 处理, 但需要区分
                 if root_name.endswith('.s2d'):
                     file_type = 's2d'
+                if root_name.endswith('.mot'):
+                    file_type = 'mot'
                 
                 loaded_info = None
                 
@@ -217,6 +238,10 @@ class AppController(QMainWindow):
                 elif file_type == 's2d':
                     self.tsk_file_info = load_tsk_beta(file_data, root_name.split('.')[0])
                     self.tsk_file_info['name'] = root_name.split('.')[0] + '.s2d'
+                    loaded_info = self.tsk_file_info
+                elif file_type == 'mot':
+                    self.tsk_file_info = load_tsk_beta(file_data, root_name.split('.')[0])
+                    self.tsk_file_info['name'] = root_name.split('.')[0] + '.mot'
                     loaded_info = self.tsk_file_info
                     
                 elif file_type == 'nut':
@@ -269,13 +294,114 @@ class AppController(QMainWindow):
         root_item.setExpanded(True)
         
 
-    def handle_convert(self):
-        """处理主菜单 Convert 点击事件"""
-        self.statusbar.showMessage("Handling Convert...")
-        # 检查是否勾选了 Use Dict
+    def handle_convert_scb(self):
+        """处理主菜单 Convert SCB点击事件"""    
+        # 生成scb如果没有勾选字典提示警告
+        if not self.cb_use_dict.isChecked():
+            reply = QMessageBox.question(None, "Warning", "You Don't have Use Dict enabled. The converted SCB may not be correct. Proceed?", QMessageBox.Ok | QMessageBox.Cancel)
+            if reply != QMessageBox.Ok:
+                return
+        
+        json_filenames, _ = QFileDialog.getOpenFileNames(
+            self,
+            "Select JSON Files",
+            "",
+            "JSON Files (*.json);;All Files (*)"
+        )
+        if not json_filenames:
+            return
+        
+        json_file_dir = os.path.dirname(json_filenames[0])
+        output_dir = os.path.join(json_file_dir, "output_scb")
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        self._json_queue = list(json_filenames)
+        self._json_total = len(json_filenames)
+        self._json_count = 0
+        
+        def process_next():
+            if not self._json_queue:
+                self.statusbar.showMessage(
+                    f"SCB conversion completed: {self._json_count}/{self._json_total}"
+                )
+                QMessageBox.information(None, "Done", f"SCB conversion completed: {self._json_count}/{self._json_total}\nOutput directory: {output_dir}")
+                return
+            json_filename = self._json_queue.pop(0)
+            try:
+                json_path = pathlib.Path(json_filename)
+                output_scb_path = createSCB(
+                    json_path, 
+                    self.charMap['import'], 
+                    self.cb_use_dict.isChecked(),
+                    export_directory=output_dir
+                )
+                self._json_count += 1
+                self.statusbar.showMessage(
+                    f"Converted {json_path.name} to SCB ({self._json_count}/{self._json_total})"
+                )
+            except Exception as e:
+                QMessageBox.warning(None, "Error", str(e))
+            QTimer.singleShot(10, process_next)
+        
+        process_next()
+        
+        
+    def handle_extract_scb(self):
+        """处理主菜单 Extract SCB点击事件"""
+        # 提取scb如果勾选字典提示警告
         if self.cb_use_dict.isChecked():
-            print("Convert: Use Dict enabled.")
-        # ... 调用 FileOperations ...
+            reply = QMessageBox.question(None, "Warning", "You have Use Dict enabled. The exported SCB json may not be correct. Proceed?", QMessageBox.Ok | QMessageBox.Cancel)
+            if reply != QMessageBox.Ok:
+                return
+        
+        scb_filenames, _ = QFileDialog.getOpenFileNames(
+            self,
+            "Select SCB Files",
+            "",
+            "SCB Files (*.scb);;All Files (*)"
+        )
+
+        if not scb_filenames:
+            return
+
+        scb_file_dir = os.path.dirname(scb_filenames[0])
+        output_dir = os.path.join(scb_file_dir, "output_json")
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        self._scb_queue = list(scb_filenames)
+        self._scb_total = len(scb_filenames)
+        self._scb_count = 0
+        
+        def process_next():
+            if not self._scb_queue:
+                self.statusbar.showMessage(
+                    f"SCB export completed: {self._scb_count}/{self._scb_total}"
+                )
+                QMessageBox.information(None, "Done", f"SCB export completed: {self._scb_count}/{self._scb_total}\nOutput directory: {output_dir}")
+                return
+            scb_filename = self._scb_queue.pop(0)
+            try:
+                scb_path = pathlib.Path(scb_filename)
+                script = scb.Scb.from_file(scb_path)
+                os.makedirs(output_dir, exist_ok=True)
+                output_json_path = exportJSON(
+                    script,
+                    scb_path,
+                    self.charMap['export'],
+                    self.cb_use_dict.isChecked(),
+                    export_directory=output_dir
+                )
+                self._scb_count += 1
+                self.statusbar.showMessage(
+                    f"Exported {scb_path.name} ({self._scb_count}/{self._scb_total})"
+                )
+            except Exception as e:
+                QMessageBox.warning(None, "Error", str(e))
+            QTimer.singleShot(10, process_next)
+
+        process_next()
+
+
     
     def handle_save_as(self):
         """处理主菜单 Save As 点击事件"""
@@ -298,22 +424,24 @@ class AppController(QMainWindow):
     # --- 右键菜单相关方法 ---
     def show_context_menu(self, point: QPoint):
         """在 treeWidget 的指定位置 point 显示右键菜单"""
-        # 获取被点击的树形控件项 (QTreeWidgetItem)
         item = self.treeWidget.itemAt(point)
-        
-        # 只有点击到具体的项目时才显示菜单
         if item:
-            # 获取被点击项目的完整路径（这里简单地使用文本作为路径）
             item_meta = item.data(0, Qt.UserRole) or {}
-            
             menu = QMenu(self)
-            
+
             # 导入选项
             import_action = QAction("Replace", self)
-            # 使用 lambda 匿名函数将当前项目的路径作为参数传递给 handler
             import_action.triggered.connect(lambda: self.handle_replace(item_meta))
             menu.addAction(import_action)
-            
+
+            # 针对xmb文件类型增加rewrite按钮
+            # 判断规则：文件名后缀为.xmb（不区分大小写）
+            name = item_meta.get('name', '')
+            if isinstance(name, str) and name.lower().endswith('.xmb'):
+                rewrite_action = QAction("Rewrite", self)
+                rewrite_action.triggered.connect(lambda: self.handle_rewrite(item_meta))
+                menu.addAction(rewrite_action)
+
             # 导出选项
             export_action = QAction("Export", self)
             export_action.triggered.connect(lambda: self.handle_export(item_meta))
@@ -323,31 +451,88 @@ class AppController(QMainWindow):
             export_all_action = QAction("Export All", self)
             export_all_action.triggered.connect(lambda: self.handle_export_all(item_meta))
             menu.addAction(export_all_action)
-            
+
             # 递归导出全部选项
             export_all_files_action = QAction("Export All Files (Recursive)", self)
             export_all_files_action.triggered.connect(lambda: self.handle_export_all_recursive(item_meta))
             menu.addAction(export_all_files_action)
-            
+
             if item_meta.get('type') not in ['file_nut', 'file_tsk', 'file_mpc','folder']:
-                export_all_action.setEnabled(False)          
+                export_all_action.setEnabled(False)
                 export_all_files_action.setEnabled(False)
-                
+
             if item_meta.get('type') in ['folder']:
                 import_action.setEnabled(False)
                 export_action.setEnabled(False)
-            
-            # 在鼠标的全局位置显示菜单
+
             menu.exec_(self.treeWidget.mapToGlobal(point))
         else:
-            # 如果点击在空白区域，可以显示一个不同的菜单，或者不显示
             pass
+
+    def handle_rewrite(self, item_meta: dict):
+        """处理 Rewrite 菜单点击事件（xmb专用）"""
+        if item_meta is None:
+            self.statusbar.showMessage("No item metadata available for Rewrite.")
+            return
         
-            
+        rewrite_file_path, _ = QFileDialog.getOpenFileName(
+            None, "Select Json File to Rewrite", "", "JSON Files (*.json);;All Files (*)"
+        )
+        
+        if not rewrite_file_path:
+            return None
+        
+        json_file_name = os.path.splitext(os.path.basename(rewrite_file_path))[0]
+        xmb_file_name = item_meta.get('name','').split('.')[0]
+        if json_file_name != xmb_file_name :
+            QMessageBox.warning(None, "Error", f"The selected JSON file name does not match the XMB file name.\nExpected: {xmb_file_name + '.json'}, Actual: {json_file_name}")
+            return
+        with open(rewrite_file_path, 'r', encoding='utf-16') as f:
+            json_data = json.load(f)
+        
+        if not self.cb_use_dict.isChecked():
+            reply = QMessageBox.question(None, "Warning", "You Don't have Use Dict enabled. The rewritten XMB may not be correct. Proceed?", QMessageBox.Ok | QMessageBox.Cancel)
+            if reply != QMessageBox.Ok:
+                return
+        xmb_offset = item_meta['offset']
+        xmb_size = item_meta['size']
+        new_opened_file_data = bytearray(self.fileoperations.opened_file['data'])
+        try:
+            xmb_data = new_opened_file_data[xmb_offset:xmb_offset+xmb_size]
+            for item in json_data:
+                offset = item["_offset"]
+                text = item["translate"]
+                size = item["_size"]
+                convertText = ""
+                
+                for char in text:
+                    if self.cb_use_dict.isChecked():
+                        if char in self.charMap['import']:
+                            convertText += self.charMap['import'][char]
+                        else:
+                            convertText += char
+                    else:
+                        convertText += char
+                utf16be_text = convertText.encode('utf-16be')
+                text_size = len(utf16be_text)
+                if text_size > size:
+                    raise ValueError(f"Rewritten text size exceeds original size at offset {offset}. Original size: {size}, New size: {text_size}, Text: {text}")
+                
+                padding = b'\x00' * (size - text_size)
+                xmb_data[offset:offset+size] = utf16be_text + padding
+        except Exception as e:
+            QMessageBox.warning(None, "Error", f"Failed to rewrite XMB: {str(e)}")
+            return       
+        
+        new_opened_file_data[xmb_offset:xmb_offset+xmb_size] = xmb_data
+        self.fileoperations.opened_file['data'] = bytes(new_opened_file_data)
+        self.statusbar.showMessage(f"Rewrite successful for: {item_meta.get('name')}")
+        
+        
     def handle_replace(self, item_meta: dict):
         """处理 Replace 菜单点击事件，并转发给核心逻辑"""
         if item_meta is None:
-            self.statusBar.showMessage("No item metadata available for Replace.")
+            self.statusbar.showMessage("No item metadata available for Replace.")
             return
         
         replaced_file_path, _ = QFileDialog.getOpenFileName(
@@ -390,7 +575,7 @@ class AppController(QMainWindow):
     def handle_export(self, item_meta: dict):
         """处理 Export 菜单点击事件，并转发给核心逻辑"""
         if item_meta is None:
-            self.statusBar.showMessage("No item metadata available for Export.")
+            self.statusbar.showMessage("No item metadata available for Export.")
             return
         
         # 通过右键菜单传来的 item 需要存储，或从树中重新获取

@@ -113,3 +113,15 @@ class FileOperations:
         import json
         with open(import_path, 'r', encoding='utf-8') as f:
             return json.load(f)
+        
+    def load_char_map_from_file(file_path: str):
+        """从字符映射文件加载映射表"""
+        char_map = {}
+        with open(file_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                parts = line.strip().split('=', 1)
+                if len(parts) == 2:
+                    original_char = parts[0].strip()
+                    mapped_char = parts[1].strip()
+                    char_map[original_char] = mapped_char
+        return char_map

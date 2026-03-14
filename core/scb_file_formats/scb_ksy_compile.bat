@@ -1,0 +1,1 @@
+D:\kaitai\bin\kaitai-struct-compiler.bat "G:\Imas2TooS\core\scbtool\scb_file_formats\scb.ksy" --outdir "G:\Imas2TooS\core\scbtool\scb_file_formats" -t python

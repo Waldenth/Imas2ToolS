@@ -133,7 +133,14 @@
         <property name="title">
           <string>Tools</string>
         </property>
-        <addaction name="actionConvert" />
+        <widget class="QMenu" name="menuConvertSCB">
+          <property name="title">
+            <string>Convert SCB</string>
+          </property>
+          <addaction name="actionCreateSCB" />
+          <addaction name="actionExtractSCB" />
+        </widget>
+        <addaction name="menuConvertSCB"/>
         <addaction name="actionImport_from_directory" />
         <addaction name="actionExport_all_images" />
       </widget>
@@ -174,6 +181,16 @@
     <action name="actionExport_all_images">
       <property name="text">
         <string>Export all images</string>
+      </property>
+    </action>
+    <action name="actionCreateSCB">
+      <property name="text">
+        <string>Create SCB</string>
+      </property>
+    </action>
+    <action name="actionExtractSCB">
+      <property name="text">
+        <string>Extract SCB</string>
       </property>
     </action>
   </widget>
