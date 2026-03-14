@@ -144,6 +144,7 @@
         <addaction name="actionrewriteXMB" />
         <addaction name="actionImport_from_directory" />
         <addaction name="actionExport_all_images" />
+        <addaction name="actionExport_all_xmbs" />
       </widget>
       <addaction name="menuFile" />
       <addaction name="menuTools" />
@@ -187,6 +188,11 @@
     <action name="actionExport_all_images">
       <property name="text">
         <string>Export all images</string>
+      </property>
+    </action>
+        <action name="actionExport_all_xmbs">
+      <property name="text">
+        <string>Export all XMBs</string>
       </property>
     </action>
     <action name="actionCreateSCB">

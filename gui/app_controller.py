@@ -126,6 +126,7 @@ class AppController(QMainWindow):
         self.actionSave_as.triggered.connect(self.handle_save_as)
         self.actionImport_from_directory.triggered.connect(self.handle_import_from_directory)
         self.actionExport_all_images.triggered.connect(self.handle_export_all_images)
+        self.actionExport_all_xmbs.triggered.connect(self.handle_export_all_xmbs)
 
         # 设置文件树的右键菜单
         self.treeWidget.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -1160,7 +1161,122 @@ class AppController(QMainWindow):
             
         process_next()
        
-                   
+    
+    def handle_export_all_xmbs(self):
+        """处理 Tools > Export all XMB 点击事件"""
+        if not self.fileoperations.opened_file.get('data'):
+            QMessageBox.warning(self, "Warning", "No file is currently open.")
+            return
+        
+        item_meta = self.treeWidget.topLevelItem(0).data(0, Qt.UserRole)
+        
+        if item_meta is None:
+            self.statusbar.showMessage("Please open a file first.")
+            return
+        
+        directory = QFileDialog.getExistingDirectory(
+            self, 
+            "Select a directory to export XMBs to",
+            ""
+        )
+        
+        if not directory:
+            return
+        
+        export_file_info ={
+            "parent_file": item_meta.get('path').split('/')[0],
+            "file_list": []
+        }
+        
+        self._export_file_info = export_file_info
+        # 注意导出图片的export_json_path包含_xmbs后缀
+        self._export_json_path = os.path.join(directory, "{}_xmbs.json".format(item_meta.get('name')))
+        self._export_count = 0
+        self._export_total = 0
+        self._export_dir = directory
+    
+        def count_xmbs(subitems):
+            count = 0
+            for subitem in subitems:
+                ctype = subitem.get('type', 'file')
+                size = subitem.get('size', 0)
+                
+                if ctype == 'folder':
+                    count += count_xmbs(subitem.get('subItem', []))
+                elif ctype == 'file_xmb' and size > 0 :
+                    count += 1
+                elif ctype in ['file_mpc', 'file_tsk', 'file_nut']:
+                    count += count_xmbs(subitem.get('subItem', []))
+            return count
+        
+        self._export_total = count_xmbs(item_meta.get('subItem', []))
+        
+        def build_xmb_queue(subitems, current_dir, queue):
+            for subitem in subitems:
+                if subitem is None:
+                    continue
+                name = subitem.get('name')
+                size = subitem.get('size', 0)
+                if size == 0:
+                    continue
+                offset = subitem.get('offset', 0)
+                ctype = subitem.get('type', 'file')
+                path_name = subitem.get('path')
+                if path_name is None:
+                    continue
+                else:
+                    path_name = path_name.replace('/','+').replace('\\','+')
+                
+                
+                if ctype == 'folder':
+                    build_xmb_queue(subitem.get('subItem', []), current_dir, queue)
+                elif ctype == 'file_xmb' and size > 0 :
+                    queue.append({
+                        'name': path_name,
+                        'size': size,
+                        'offset': offset,
+                    })
+                elif ctype in ['file_mpc', 'file_tsk', 'file_nut']:
+                    build_xmb_queue(subitem.get('subItem', []), current_dir, queue)
+                else:
+                    continue
+        xmb_queue = []
+        build_xmb_queue(item_meta.get('subItem', []), directory, xmb_queue)     
+    
+        def process_next():
+            if not xmb_queue:
+                FileOperations.save_json_to_file(self._export_file_info, self._export_json_path)
+                self.statusbar.showMessage(f"Export all XMBs completed to directory: {directory}, total {self._export_count} XMB files.")
+                return 
+            file_item = xmb_queue.pop(0)
+            name = file_item['name']
+            size = file_item['size']
+            offset = file_item['offset']
+            
+            try:
+                if size == 0:
+                    self._export_count += 1
+                    QTimer.singleShot(10, process_next)
+                    return
+                file_data = self.fileoperations.opened_file["data"][offset:offset+size]
+                save_path = os.path.join(self._export_dir, name)
+                os.makedirs(os.path.dirname(save_path), exist_ok=True)
+                FileOperations.export_file_logic(file_data, save_path)
+                self._export_file_info["file_list"].append({
+                    "name": name,
+                    "offset": offset,
+                    "size": size,
+                })
+                self._export_count += 1
+                self.statusbar.showMessage(f"Exported XMB: {name}, {self._export_count}/{self._export_total}")
+            except Exception as e:
+                self._export_count += 1
+                self.statusbar.showMessage(f"Error exporting XMB {name}: {str(e)}")
+                
+            QTimer.singleShot(10, process_next)
+        
+        process_next()
+    
     
     
     def display_texture(self, image_meta):
