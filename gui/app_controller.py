@@ -17,6 +17,7 @@ from core.mpctool import *
 from core.nuttool import *
 from core.imagetool import *
 from core.tsktool import *
+from core.xmbtool import *
 from io import BytesIO
 from PyQt5.QtCore import QTimer
 from core.scb_file_formats import scb
@@ -449,6 +450,10 @@ class AppController(QMainWindow):
                 rewrite_action = QAction("Rewrite", self)
                 rewrite_action.triggered.connect(lambda: self.handle_rewrite_xmb_item(item_meta))
                 menu.addAction(rewrite_action)
+                
+                preview_xml_action = QAction("Preview XML", self)
+                preview_xml_action.triggered.connect(lambda: self.preview_xmb_as_xml(item_meta))
+                menu.addAction(preview_xml_action)
 
             # 导出选项
             export_action = QAction("Export", self)
@@ -477,6 +482,23 @@ class AppController(QMainWindow):
         else:
             pass
 
+    def preview_xmb_as_xml(self, item_meta: dict):
+        """将 xmb 文件解析为 XML 并显示在预览区"""
+        if item_meta is None:
+            self.statusbar.showMessage("No item metadata available for XML preview.")
+            return
+        offset = item_meta.get('offset')
+        size = item_meta.get('size')
+        xmb_data = self.fileoperations.opened_file['data'][offset:offset+size]
+        xml_tree, text_datas = xmb_to_xml(xmb_data)
+        #xml_str = ET.tostring(xml_data.getroot(), encoding='utf-8').decode('utf-8')
+        xml_text = xml_to_pretty_string(xml_tree)
+        xmb_name = item_meta.get('name', 'preview.xmb')
+        # 默认保存文件名为 xmb 文件同名的 json 文件，后缀改为 .json
+        default_filename = os.path.splitext(xmb_name)[0] + '.json'
+        show_xml_window(self, xml_text, text_datas, default_filename)
+    
+    
     def handle_rewrite_xmb_item(self, item_meta: dict):
         """处理 Rewrite 菜单点击事件（xmb专用）"""
         if item_meta is None:
