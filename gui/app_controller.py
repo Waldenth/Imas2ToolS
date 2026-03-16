@@ -439,15 +439,17 @@ class AppController(QMainWindow):
         
         # 定义完成回调
         def on_finished(total):
-            self.statusbar.showMessage(f"DDS conversion finished ({total} files)")
             self.runner = None
+            self.statusbar.showMessage(f"DDS conversion finished ({total} files)")
             reply = QMessageBox.information(None, "Done", f"DDS conversion completed for {total} files.\nOutput directory: {os.path.join(os.path.dirname(png_files[0]), 'output_dds')}\nOpen the output directory?", QMessageBox.Yes | QMessageBox.No)
             if reply == QMessageBox.Yes:
                 subprocess.Popen(["explorer", os.path.abspath(os.path.join(os.path.dirname(png_files[0]), 'output_dds'))])
         
         def on_error(msg):
-            QMessageBox.warning(None, "Error", f"DDS conversion failed: {msg}")
             self.runner = None
+            self.statusbar.showMessage(f"DDS conversion failed.")
+            QMessageBox.warning(None, "Error", f"DDS conversion failed: {msg}")
+            
         
         self.runner = runner = TaskRunner(self)
         self.runner.start(
@@ -1500,3 +1502,11 @@ class AppController(QMainWindow):
                     self._build_recursive_structure(item, ext or ctype, child, full_path)
             
             item.setData(0, Qt.UserRole, child)
+    
+    # 重写 closeEvent 确保在关闭窗口时正确终止线程
+    def closeEvent(self, event):
+        if getattr(self, "runner", None):
+            if self.runner.thread and self.runner.thread.isRunning():
+                self.runner.thread.quit()
+                self.runner.thread.wait()
+        super().closeEvent(event)

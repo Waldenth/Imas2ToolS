@@ -37,9 +37,20 @@ def convert_png_to_dds(png_path, dds_format, nvdxt_path):
             "-nomipmap",
             f"-{dds_format.lower()}"
         ]
-        print(cmd, flush=True)
-        subprocess.run(cmd, check=True)
+        subprocess.run(
+            cmd, 
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True
+        )
     except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"Failed to convert {png_path} to DDS: {e}")
+        raise RuntimeError(
+            f"Failed to convert {png_path} to DDS\n"
+            f"cmd: {e.cmd}\n"
+            f"returncode: {e.returncode}\n"
+            f"output:\n{e.stdout}"
+        )
+        #raise RuntimeError(f"Failed to convert {png_path} to DDS: {e}")
 
     return dds_path

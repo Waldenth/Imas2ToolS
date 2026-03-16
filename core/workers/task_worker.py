@@ -16,10 +16,10 @@ class TaskWorker(QObject):
     def run(self):
         try:
             result = self.task_func(self.progress.emit, *self.args, **self.kwargs)
-            self.finished.emit(result)
         except Exception as e:
             self.error.emit(str(e))
-            self.finished.emit(None)
+            return
+        self.finished.emit(result)
 
 
 class TaskRunner:
