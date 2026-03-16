@@ -24,6 +24,8 @@ from core.scb_file_formats import scb
 from core.scb_file_formats import msg
 from core.scb_file_formats import scb0
 from core.scbtool import *
+from core.workers.task_worker import TaskRunner
+from core.services.dds_converter import convert_png_to_dds_task
 
 class AppController(QMainWindow):
     def __init__(self):
@@ -40,6 +42,8 @@ class AppController(QMainWindow):
         self.tsk_file_info = None # <-- 新增：存储解析后的 TSK 文件信息
         
         self.charMap = { 'import': {}, 'export': {} }  # 存储字符映射表
+        
+        self.runner = None  # 用于存储 TaskRunner 实例，避免被垃圾回收
         
         self.load_ui()
         self.init_logic()
@@ -65,6 +69,7 @@ class AppController(QMainWindow):
         icon_path = os.path.join(project_root, "resources", icon_file_name)
         import_char_path = os.path.join(project_root, "resources", import_char_txt)
         export_char_path = os.path.join(project_root, "resources", export_char_txt)
+        nvdxt_path = os.path.join(project_root, "resources", "nvdxt.exe")
         
         
         if os.path.exists(icon_path):
@@ -123,7 +128,13 @@ class AppController(QMainWindow):
         
         self.actionCreateSCB.triggered.connect(self.handle_convert_scb)
         self.actionExtractSCB.triggered.connect(self.handle_extract_scb)
-        self.actionrewriteXMB.triggered.connect(self.handle_rewrite_xmb_file)
+        self.actionConvertDDSDXT1.triggered.connect(
+            lambda: self.handle_convert_dds("DXT1A", nvdxt_path))
+        self.actionConvertDDSDXT3.triggered.connect(
+            lambda: self.handle_convert_dds("DXT3", nvdxt_path))
+        self.actionConvertDDSDXT5.triggered.connect(
+            lambda: self.handle_convert_dds("DXT5", nvdxt_path))
+        self.actionRewriteXMB.triggered.connect(self.handle_rewrite_xmb_file)
         self.actionSave_as.triggered.connect(self.handle_save_as)
         self.actionImport_from_directory.triggered.connect(self.handle_import_from_directory)
         self.actionExport_all_images.triggered.connect(self.handle_export_all_images)
@@ -410,6 +421,46 @@ class AppController(QMainWindow):
 
         process_next()
 
+
+    def handle_convert_dds(self, dds_format="DXT1A", nvdxt_path=None):
+        #self.statusbar.showMessage(f"Convert DDS to {dds_format} is not implemented yet.")
+        if not os.path.exists(nvdxt_path):
+            QMessageBox.warning(None, "Error", f"nvdxt.exe not found.\nPlease put nvdxt.exe in {nvdxt_path}.")
+            return
+
+        png_files, _ = QFileDialog.getOpenFileNames(
+            self,
+            "Select PNG Files",
+            "",
+            "PNG Files (*.png);;All Files (*)"
+        )
+        if not png_files:
+            return
+        
+        # 定义完成回调
+        def on_finished(total):
+            self.statusbar.showMessage(f"DDS conversion finished ({total} files)")
+            self.runner = None
+            reply = QMessageBox.information(None, "Done", f"DDS conversion completed for {total} files.\nOutput directory: {os.path.join(os.path.dirname(png_files[0]), 'output_dds')}\nOpen the output directory?", QMessageBox.Yes | QMessageBox.No)
+            if reply == QMessageBox.Yes:
+                subprocess.Popen(["explorer", os.path.abspath(os.path.join(os.path.dirname(png_files[0]), 'output_dds'))])
+        
+        def on_error(msg):
+            QMessageBox.warning(None, "Error", f"DDS conversion failed: {msg}")
+            self.runner = None
+        
+        self.runner = runner = TaskRunner(self)
+        self.runner.start(
+            convert_png_to_dds_task,
+            png_files,
+            dds_format,
+            nvdxt_path,
+            on_progress=self.statusbar.showMessage,
+            on_finished=on_finished,
+            on_error=on_error
+        )
+        
+        return
 
     
     def handle_save_as(self):
