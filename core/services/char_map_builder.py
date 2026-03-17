@@ -7,7 +7,8 @@ def remap_chars_task(progress, folder_path, existing_char_map = {}, original_cha
     original_char_set: 原始字体中包含的所有kanji字符集合
     '''
     escape_char_set =set(
-        ['','','','','','','','','','','','','','','']
+        ['','','','','','','','','','','','','','','',\
+         '歩','槻','覇','響','玲','県','茨','栃','岐','阜','広','札','幌','潟','沢']
     )
         
     used_char_set = set(existing_char_map.values())
