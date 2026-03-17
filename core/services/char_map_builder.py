@@ -56,7 +56,6 @@ def remap_chars_task(progress, folder_path, existing_char_map = {}, original_cha
 def collect_translate_chars(folder_path):
     char_set = set()
     file_count = 0
-    string_count = 0
 
     for root, _, files in os.walk(folder_path):
         for file in files:
@@ -69,21 +68,26 @@ def collect_translate_chars(folder_path):
                 with open(json_path, "r", encoding="utf-16") as f:
                     data = json.load(f)
 
-                translates = data.get("translate", [])
-
-                if not isinstance(translates, list):
-                    continue
-
-                file_count += 1
-
-                for text in translates:
-                    if not isinstance(text, str):
-                        continue
-
-                    string_count += 1
-
-                    for ch in text:
-                        char_set.add(ch)
+                # 情况1：字典类型，存在 "translate" 列表
+                if isinstance(data, dict) and "translate" in data:
+                    translates = data.get("translate", [])
+                    if isinstance(translates, list):
+                        file_count += 1
+                        for text in translates:
+                            if isinstance(text, str):
+                                char_set.update(text)
+                # 情况2：列表类型，每个元素是字典，含 "translate" 字段
+                elif isinstance(data, list):
+                    has_translate = False
+                    for item in data:
+                        if isinstance(item, dict) and "translate" in item:
+                            t = item["translate"]
+                            if isinstance(t, str):
+                                char_set.update(t)
+                                has_translate = True
+                    
+                    if has_translate:
+                        file_count += 1
 
             except Exception as e:
                 raise RuntimeError(f"Failed to process {json_path}: {e}")

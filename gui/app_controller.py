@@ -1441,7 +1441,7 @@ class AppController(QMainWindow):
         }
         
         self._export_file_info = export_file_info
-        # 注意导出图片的export_json_path包含_xmbs后缀
+        # 注意导出的export_json_path包含_xmbs后缀
         self._export_json_path = os.path.join(directory, "{}_xmbs.json".format(item_meta.get('name')))
         self._export_count = 0
         self._export_total = 0
