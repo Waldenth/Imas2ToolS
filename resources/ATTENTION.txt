@@ -1,0 +1,2 @@
+Only import.txt and export.txt can be replaced in THIS folder.
+DO NOT modify other files.
