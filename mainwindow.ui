@@ -161,6 +161,7 @@
         </property>
         <addaction name="actionBuildCharMap" />
         <addaction name="actionBuildFontImageNFH" />
+        <addaction name="actionGenerateNFHJson" />
       </widget>
       <addaction name="menuFile" />
       <addaction name="menuTools" />
@@ -245,6 +246,11 @@
     <action name="actionBuildFontImageNFH">
       <property name="text">
         <string>Build Font Image and NFH</string>
+      </property>
+    </action>
+    <action name="actionGenerateNFHJson">
+      <property name="text">
+        <string>Generate NFH Json</string>
       </property>
     </action>
   </widget>

@@ -26,6 +26,9 @@ from core.scb_file_formats import scb0
 from core.scbtool import *
 from core.workers.task_worker import TaskRunner
 from core.services.dds_converter import convert_png_to_dds_task
+from core.services.font_builder import build_font_task
+from core.services.char_map_builder import remap_chars_task
+from core.services.nfh_parser import parse_nfh_task
 
 class AppController(QMainWindow):
     def __init__(self):
@@ -70,6 +73,11 @@ class AppController(QMainWindow):
         import_char_path = os.path.join(project_root, "resources", import_char_txt)
         export_char_path = os.path.join(project_root, "resources", export_char_txt)
         nvdxt_path = os.path.join(project_root, "resources", "nvdxt.exe")
+        original_nfh_path = os.path.join(project_root, "resources", "im2_font.nfh")
+        original_nfh_json_path = os.path.join(project_root, "resources", "im2_font.json")
+        original_font_image_path = os.path.join(project_root, "resources", "im2_font.png")
+        font_ttf_path = os.path.join(project_root, "resources", "DreamHanSans-W16.ttc")
+        zh2jp_kanji_map_path = os.path.join(project_root, "resources", "zh2jp_kanji_map.txt")
         
         
         if os.path.exists(icon_path):
@@ -128,6 +136,14 @@ class AppController(QMainWindow):
         
         self.actionCreateSCB.triggered.connect(self.handle_convert_scb)
         self.actionExtractSCB.triggered.connect(self.handle_extract_scb)
+        
+        self.actionBuildCharMap.triggered.connect(
+            lambda: self.handle_build_char_map(zh2jp_kanji_map_path, original_nfh_json_path))
+        self.actionBuildFontImageNFH.triggered.connect(
+            lambda: self.handle_build_font_image_nfh(original_nfh_path, original_nfh_json_path, original_font_image_path, font_ttf_path))
+        
+        self.actionGenerateNFHJson.triggered.connect(self.handle_generate_nfh_json)
+        
         self.actionConvertDDSDXT1.triggered.connect(
             lambda: self.handle_convert_dds("DXT1A", nvdxt_path))
         self.actionConvertDDSDXT3.triggered.connect(
@@ -451,7 +467,7 @@ class AppController(QMainWindow):
             QMessageBox.warning(None, "Error", f"DDS conversion failed: {msg}")
             
         
-        self.runner = runner = TaskRunner(self)
+        self.runner = TaskRunner(self)
         self.runner.start(
             convert_png_to_dds_task,
             png_files,
@@ -463,7 +479,168 @@ class AppController(QMainWindow):
         )
         
         return
+    
+    def handle_build_char_map(self, zh2jp_kanji_map_path, original_nfh_json_path):
+        if not os.path.exists(zh2jp_kanji_map_path):
+            QMessageBox.warning(None, "Error", f"zh2jp_kanji_map.txt not found.\nPlease put zh2jp_kanji_map.txt in {zh2jp_kanji_map_path}.")
+            return
+        if not os.path.exists(original_nfh_json_path):
+            QMessageBox.warning(None, "Error", f"Original NFH JSON file not found.\nPlease put im2_font.json in {os.path.dirname(original_nfh_json_path)}.")
+            return
+        
+        
+        folder_path = QFileDialog.getExistingDirectory(
+            self,
+            "Select Directory Containing JSON Files",
+            ""
+        )
+        if not folder_path:
+            return
+        existing_char_map = FileOperations.load_char_map_from_file(zh2jp_kanji_map_path)
+        fontdatas = json.load(open(original_nfh_json_path,"r", encoding="utf-8"))
+        remaining_char_set = set()
+        original_char_set = set()
+        
+        for fontdata in fontdatas:
+            char = fontdata.get("char")
+            if char < '㐂' or char > '鶴':
+                remaining_char_set.add(char)
+                continue
+            original_char_set.add(char)
+        
+        def on_finished(result):
+            self.runner = None
+            output_dir = os.path.join(os.path.dirname(zh2jp_kanji_map_path), "output_char_map")
+            os.makedirs(output_dir, exist_ok=True)
+            output_mapIn = os.path.join(output_dir, "import.txt")
+            output_mapOut = os.path.join(output_dir, "export.txt")
+            output_mapReplace = os.path.join(output_dir, "zh2jp_kanji_map_replace.txt")
+            new_char_map, replace_char_map = result
+            with open(output_mapIn, 'w', encoding='utf-8') as f_in, \
+                open(output_mapOut, 'w', encoding='utf-8') as f_out,\
+                open(output_mapReplace, 'w', encoding='utf-8') as f_replace:
+                for original_char, mapped_char in new_char_map.items():
+                    f_in.write(f"{original_char}={mapped_char}\n")
+                    f_out.write(f"{mapped_char}={original_char}\n")
+                for original_char, mapped_char in replace_char_map.items():
+                    f_replace.write(f"{original_char}={mapped_char}\n")
+            self.statusbar.showMessage(f"Character remapping finished. {len(replace_char_map)} characters remapped.")
+            reply = QMessageBox.information(None, "Done", f"Character remapping completed.\nTotal remapped characters: {len(replace_char_map)}\nOutput directory: {output_dir}\nOpen the output directory?", QMessageBox.Yes | QMessageBox.No)
+            if reply == QMessageBox.Yes:
+                subprocess.Popen(["explorer", os.path.abspath(output_dir)])
+        
+        def on_error(msg):
+            self.runner = None
+            self.statusbar.showMessage(f"Character remapping failed.")
+            QMessageBox.warning(None, "Error", f"Character remapping failed: {msg}")
 
+        self.runner = TaskRunner(self)
+        self.runner.start(
+            remap_chars_task,
+            folder_path = folder_path,
+            existing_char_map = existing_char_map,
+            original_char_set = original_char_set,
+            remaining_char_set = remaining_char_set,
+            on_progress=self.statusbar.showMessage,
+            on_finished=on_finished,
+            on_error=on_error
+        )
+        return
+        
+
+    def handle_build_font_image_nfh(self, original_nfh_path = None, original_nfh_json_path = None, original_font_image_path = None, font_ttf_path = None):
+        if not os.path.exists(original_nfh_path):
+            QMessageBox.warning(None, "Error", f"Original NFH file not found.\nPlease put im2_font.nfh in {original_nfh_path}.")
+            return
+        if not os.path.exists(original_nfh_json_path):
+            QMessageBox.warning(None, "Error", f"Original NFH JSON file not found.\nPlease put im2_font.json in {os.path.dirname(original_nfh_path)}.")
+            return
+        if not os.path.exists(original_font_image_path):
+            QMessageBox.warning(None, "Error", f"Original font image not found.\nPlease put im2_font.png in {os.path.dirname(original_nfh_path)}.")
+            return
+        if not os.path.exists(font_ttf_path):
+            QMessageBox.warning(None, "Error", f"Original font TTF file not found.\nPlease put DreamHanSans-W16.ttc in {os.path.dirname(original_nfh_path)}.")
+            return
+
+        nfh_data = bytearray()
+        with open(original_nfh_path,"rb") as f:
+            nfh_data.extend(f.read())
+
+        fontdatas = json.load(open(original_nfh_json_path,"r", encoding="utf-8"))
+
+        original_font_image = Image.open(original_font_image_path)
+        
+        def on_finished(result):
+            self.runner = None
+            # 保存结果
+            output_dir = os.path.join(os.path.dirname(original_nfh_path), "output_font")
+            os.makedirs(output_dir, exist_ok=True)
+            nfh_data, canvas = result
+            output_nfh_path = os.path.join(output_dir, "im2_font.nfh")
+            output_font_image_path = os.path.join(output_dir, "im2_font.png")
+            with open(output_nfh_path, "wb") as f:
+                f.write(nfh_data)
+            canvas.save(output_font_image_path)
+            self.statusbar.showMessage("Font image build finished.")
+            reply = QMessageBox.information(None, "Done", f"Font image and NFH build completed.\nOutput directory: {output_dir}\nOpen the output directory?", QMessageBox.Yes | QMessageBox.No)
+            if reply == QMessageBox.Yes:
+                subprocess.Popen(["explorer", os.path.abspath(output_dir)])
+        
+        def on_error(msg):
+            self.runner = None
+            self.statusbar.showMessage(f"Font image build failed.")
+            QMessageBox.warning(None, "Error", f"Font image build failed: {msg}")
+        
+        self.runner = TaskRunner(self)
+        self.runner.start(
+            build_font_task,
+            nfh_data = nfh_data,
+            fontdatas = fontdatas,
+            original_font_image = original_font_image,
+            ttf_path = font_ttf_path,
+            replace_char_map = self.charMap['export'], # export key = 原字符, value = 替换的汉化字符
+            on_progress=self.statusbar.showMessage,
+            on_finished=on_finished,
+            on_error=on_error
+        )
+        return
+
+    def handle_generate_nfh_json(self):
+        nfh_filename, _ = QFileDialog.getOpenFileName(
+            None, "Select NFH File", "", "NFH Files (*.nfh)"
+        )
+        if not nfh_filename:
+            return
+
+        with open(nfh_filename, 'rb') as f:
+            nfh_data = bytearray(f.read())
+            output_dir = os.path.dirname(nfh_filename)
+            output_name = os.path.splitext(os.path.basename(nfh_filename))[0] + ".json"
+            output_path = os.path.join(output_dir, output_name)
+        
+        def on_finished(json_data):
+            self.runner = None
+            with open(output_path, 'w', encoding='utf-8') as json_file:
+                json.dump(json_data, json_file, ensure_ascii=False, indent=4)
+            self.statusbar.showMessage(f"NFH JSON generated: {output_path}")
+            reply = QMessageBox.information(None, "Done", f"NFH JSON generated successfully.\nOutput path: {output_path}\nOpen the output file?", QMessageBox.Yes | QMessageBox.No)
+            if reply == QMessageBox.Yes:
+                subprocess.Popen(["explorer", os.path.abspath(output_path)])
+        
+        def on_error(msg):
+            self.runner = None
+            self.statusbar.showMessage(f"NFH JSON generation failed.")
+            QMessageBox.warning(None, "Error", f"NFH JSON generation failed: {msg}")
+        
+        self.runner = TaskRunner(self)
+        self.runner.start(
+            parse_nfh_task,
+            nfh_data = nfh_data,
+            on_progress=self.statusbar.showMessage,
+            on_finished=on_finished,
+            on_error=on_error
+        )
+        return
     
     def handle_save_as(self):
         """处理主菜单 Save As 点击事件"""
