@@ -1,23 +1,29 @@
 import os
 import json
 
+def is_emoji(c):
+    if ord(c) in range(0xE000, 0xE100):
+        return True
+    return False
+
 def remap_chars_task(progress, folder_path, existing_char_map = {}, original_char_set = set(), remaining_char_set = set()):
     '''
     existing_char_map: zh2jp_kanji_map中已存在的简体汉字 - 同义日文kanji映射, key是简体汉字, value是日文kanji
     original_char_set: 原始字体中包含的所有kanji字符集合
     '''
+    # escape_char_set: 占位符字符和日文需用字集合，这些字符不进行映射，直接保留原样。
     escape_char_set =set(
-        ['','','','','','','','','','','','','','','',\
+        ['','','','','','','','','','','','','','','', \
          '歩','槻','覇','響','玲','県','茨','栃','岐','阜','広','札','幌','潟','沢']
     )
         
     used_char_set = set(existing_char_map.values())
 
+    # 可用于映射的字符集合 = 原始字体中包含的所有kanji字符集合 - 已经被使用的字符集合
     available_char_set = set()
     for c in original_char_set:
         if c not in used_char_set:
             available_char_set.add(c)
-    
     
     if len(available_char_set) == 0:
         raise ValueError("No available characters left for remapping.")
@@ -31,13 +37,17 @@ def remap_chars_task(progress, folder_path, existing_char_map = {}, original_cha
     replace_char_map = {}
     progress("Remapping characters...")
     
+    # 移除占位符字符（不进行映射）
     for c in escape_char_set:
         if c in missing_char_list:
             missing_char_list.remove(c)
 
+    # 先移除掉需要映射的字符和可用于映射的字符的交集 ，以及emoji字符（不进行映射）
     for c in missing_char_list[:]:
         if c in available_char_set:
             available_char_set.remove(c)
+            missing_char_list.remove(c)
+        elif is_emoji(c):
             missing_char_list.remove(c)
     
     for c in missing_char_list:

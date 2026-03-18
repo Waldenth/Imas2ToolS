@@ -10,6 +10,8 @@ def xml_to_pretty_string(tree: ET.ElementTree):
     rough_string = ET.tostring(tree.getroot(), encoding="utf-8")
     reparsed = minidom.parseString(rough_string)
     return reparsed.toprettyxml(indent="  ")
+    #pretty_xml = reparsed.toprettyxml(indent="  ")
+    #return "\n".join(pretty_xml.split("\n")[1:])
 
 def show_xml_window(parent, xml_text, text_datas=None, default_filename="preview_xmb.json"):
     dialog = QDialog(parent)
