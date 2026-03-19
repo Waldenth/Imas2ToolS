@@ -5,13 +5,14 @@ import traceback
 import json
 import subprocess
 from PyQt5.QtWidgets import QMainWindow, QMenu, QAction, QTreeWidgetItem,\
-    QFileDialog, QMessageBox
+    QFileDialog, QMessageBox,QApplication
 from PyQt5 import uic
 from PyQt5.QtCore import Qt, QPoint
 from core.file_operations import FileOperations # 导入核心逻辑
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import QEvent
-
+from PyQt5.QtGui import QBrush
+from PIL import Image, ImageDraw
 from gui.scalable_label import ScalableLabel # 导入自定义控件
 from core.mpctool import *
 from core.nuttool import *
@@ -28,7 +29,7 @@ from core.workers.task_worker import TaskRunner
 from core.services.dds_converter import convert_png_to_dds_task
 from core.services.font_builder import build_font_task
 from core.services.char_map_builder import remap_chars_task
-from core.services.nfh_parser import parse_nfh_task
+from core.services.nfh_parser import parse_nfh_task, modify_nfh_item
 
 class AppController(QMainWindow):
     def __init__(self):
@@ -47,6 +48,10 @@ class AppController(QMainWindow):
         self.charMap = { 'import': {}, 'export': {} }  # 存储字符映射表
         
         self.runner = None  # 用于存储 TaskRunner 实例，避免被垃圾回收
+        
+        self.tree_mode = "folder"  # 当前树形结构模式，默认为 "folder"
+        
+        self.glyphs = {} # render font 的时候存储字形数据，key 是字符，value 是字形数据字典
         
         self.load_ui()
         self.init_logic()
@@ -79,6 +84,7 @@ class AppController(QMainWindow):
         font_ttf_path = os.path.join(project_root, "resources", "DreamHanSans-W16.ttc")
         zh2jp_kanji_map_path = os.path.join(project_root, "resources", "zh2jp_kanji_map.txt")
         
+        self.resources_path = os.path.join(project_root, "resources")
         
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
@@ -102,6 +108,11 @@ class AppController(QMainWindow):
         
         # 移除旧的 QLabel 控件
         self.preview_label.setParent(None)
+        
+        # 字体搜索渲染容器 边距设置为 0，与cb_use_dict对齐
+        self.nfh_tools_layout.setContentsMargins(0, 0, 0, 0)
+        self.nfh_tools_widget.setVisible(False)
+        
         
         # 实例化自定义的 ScalableLabel
         self.preview_label = ScalableLabel(self.scrollAreaWidgetContents)
@@ -129,10 +140,18 @@ class AppController(QMainWindow):
         # 连接 QTreeWidget 的点击信号
         self.treeWidget.itemClicked.connect(self.handle_tree_item_click)
         
+        # 连接 itemChanged 信号以处理字体属性编辑
+        self.treeWidget.itemChanged.connect(self.on_item_changed)
+        
+        # 连接字体工具的按钮
+        self.nfh_char_search_button.clicked.connect(self.search_char_in_tree)
+        self.nfh_char_render_button.clicked.connect(self.render_font_preview)  # TODO: 传入选中字符的数据
+        
         # 连接主菜单 Action
         self.actionOpen_mpc.triggered.connect(lambda: self.handle_open_file(file_type = "mpc"))
         self.actionOpen_tsk.triggered.connect(lambda: self.handle_open_file(file_type = "tsk"))
         self.actionOpen_nut.triggered.connect(lambda: self.handle_open_file(file_type = "nut"))
+        self.actionOpen_font.triggered.connect(lambda: self.handle_open_font())
         
         self.actionCreateSCB.triggered.connect(self.handle_convert_scb)
         self.actionExtractSCB.triggered.connect(self.handle_extract_scb)
@@ -172,6 +191,9 @@ class AppController(QMainWindow):
     # --- 新增点击处理方法 ---
     def handle_tree_item_click(self, item: QTreeWidgetItem, column: int):
         """处理文件树节点点击事件"""
+        if getattr(self, "tree_mode", None) != "folder":
+            return
+        
         # 从节点获取用户数据
         item_data = item.data(0, Qt.UserRole)
         
@@ -207,6 +229,10 @@ class AppController(QMainWindow):
 
 
     def handle_open_file(self, file_type: str, file_path: str = None):
+        # 打开文件时隐藏字体工具窗口
+        self.nfh_tools_widget.setVisible(False)
+        # QApplication.processEvents()
+        
         """
         弹出文件选择框，并根据 file_type 过滤文件类型
         """
@@ -302,9 +328,12 @@ class AppController(QMainWindow):
         """
         根据解析后的树形信息 (item.json 样式)，重建 TreeWidget。
         """
-
+        self.tree_mode = "folder"
+        self.treeWidget.blockSignals(True)
         # 清空现有结构
         self.treeWidget.clear()
+        self.treeWidget.setColumnCount(1)
+        self.treeWidget.setHeaderLabels(["File Structure"])
 
         root_display_name = self._format_item_name(info.get('name', root_name), info.get('size', 0))
         root_item = QTreeWidgetItem(self.treeWidget, [root_display_name])
@@ -324,6 +353,225 @@ class AppController(QMainWindow):
         root_item.setData(0, Qt.UserRole, rootInfo)
         root_item.setExpanded(True)
         
+        self.treeWidget.blockSignals(False)
+        
+    def handle_open_font(self):
+        if not self.cb_use_dict.isChecked():
+            reply = QMessageBox.question(None, "Warning", "You don't have Use Dict enabled.\nThe font char will not be mapped, and the rendering may be incorrect.\nContinue?", QMessageBox.Ok | QMessageBox.Cancel)
+            if reply != QMessageBox.Ok:
+                return
+        # QApplication.processEvents()
+        font_folder_path = QFileDialog.getExistingDirectory(
+            self,
+            "Select Font Resource Directory",
+            ""
+        )
+        if font_folder_path:
+            nfh_file_path = os.path.join(font_folder_path, "im2_font.nfh")
+            font_image_path = os.path.join(font_folder_path, "im2_font.png")
+            if not os.path.exists(nfh_file_path) or not os.path.exists(font_image_path):
+                QMessageBox.warning(None, "Error", \
+                    f"Font resource files not found in the selected directory.\nPlease ensure im2_font.nfh and im2_font.png are present in {font_folder_path}.")
+                return
+            self.font_image = Image.open(font_image_path)
+            self.nfh_file_data = bytearray(open(nfh_file_path, 'rb').read())
+            try:
+                self.nfh_json = parse_nfh_task(
+                    lambda msg: (
+                        self.statusbar.showMessage(msg),
+                        QApplication.processEvents()
+                    ),
+                    self.nfh_file_data
+                )
+            except Exception as e:
+                QMessageBox.warning(None, "Error", f"Error parsing NFH file: {e}")
+                return
+            self.nfh_tools_widget.setVisible(True)
+            self.fileoperations.opened_file = {'type': "nfh_font", 'data': self.nfh_file_data, 'name': "im2_font.nfh"}
+            self.update_font_structure(self.nfh_json)
+            
+            self.statusbar.showMessage(
+                "Font NFH loaded successfully from {}. Map:{}".format(
+                    font_folder_path,
+                    "Enabled" if self.cb_use_dict.isChecked() else "Disabled"
+                )
+            )
+            try:
+                self.font_render_background_image = Image.open(os.path.join(self.resources_path, "ComBackground.png"))
+                self.display_image(image_meta={}, image=self.font_render_background_image)
+            except Exception as e:
+                QMessageBox.warning(None, "Error", f"Failed to load font background image: {e}")
+    
+    def update_font_structure(self, nfh_json: list):
+        self.tree_mode = "font"
+        self.treeWidget.blockSignals(True)
+        # 清空现有结构
+        self.treeWidget.clear()
+        self.treeWidget.setColumnCount(2)
+        self.treeWidget.setHeaderLabels(["属性", "值"])
+        for idx, item in enumerate(self.nfh_json):
+            char = item.get("char", "")
+            # 过滤掉不可见字符
+            if ord(char) < ord(' '):
+                continue
+            if self.cb_use_dict.isChecked() and char in self.charMap['export']:
+                char = self.charMap['export'][char]
+            # 顶层节点
+            top_item = QTreeWidgetItem(self.treeWidget)
+            top_item.setText(0, f"{char}")
+            # 存 index
+            top_item.setData(0, Qt.UserRole, idx)
+            for key, value in item.items():
+                
+                self.glyphs[char] = item # 存储字形数据，key 是字符，value 是字形数据字典
+                
+                if key in ("char", "blockOffset"):
+                    continue
+                child = QTreeWidgetItem(top_item)
+                child.setText(0, key)
+                child.setText(1, str(value))
+                # 存 key
+                child.setData(0, Qt.UserRole, key)
+                is_editable = key.startswith("offset") or key == "advancex"
+                # 可编辑字段
+                if is_editable:
+                    child.setFlags(child.flags() | Qt.ItemIsEditable)
+                else:
+                    brush = QBrush(Qt.gray)
+                    child.setForeground(0, brush)
+                    child.setForeground(1, brush)
+        # self.treeWidget.expandAll()
+        self.treeWidget.blockSignals(False)
+    
+    def search_char_in_tree(self):
+        text = self.nfh_char_search_bar.text()
+        if not text:
+            return
+        target_char = text[0]  # 只取第一个字符
+        # 遍历顶层节点
+        for i in range(self.treeWidget.topLevelItemCount()):
+            item = self.treeWidget.topLevelItem(i)
+            if item.text(0) == target_char:
+                # 定位到该节点
+                self.treeWidget.setCurrentItem(item)
+                self.treeWidget.scrollToItem(item)
+                # 可选：展开
+                item.setExpanded(True)
+                self.statusbar.showMessage(f"Char '{target_char}' found and selected.")
+                return
+        # 没找到提示
+        QMessageBox.information(None, "Not Found", f"Character '{target_char}' not found in the font data.")
+        
+    def render_font_preview(self):
+        text = self.nfh_char_input_bar.toPlainText()
+        if not text:
+            return
+        lines = text.splitlines()
+        if len(lines) > 2:
+            QMessageBox.warning(None, "Input Too Long", "Only the first 2 lines will be rendered to prevent performance issues.")
+            text = "\n".join(lines[:2])
+        
+        # 拷贝一份背景图用于绘制预览，保持原图不变
+        canvas = self.font_render_background_image.copy()
+        draw = ImageDraw.Draw(canvas)
+        
+        # 绘制参数
+        pen_x = 160
+        baseline = 170
+        SCALE_FIX = 64.0
+        LINE_SPACING = 32
+
+        for line in lines:
+            if len(line) > 26:
+                QMessageBox.warning(None, "Line Too Long", "Lines longer than 26 characters may not render correctly.\nExtra characters will be ignored.")
+                line = line[:26]
+            pen_x = 160 # 每行重置 x 坐标
+            if self.show_border_checkbox.isChecked():
+                # 画 baseline（调试用）
+                canvas_w, canvas_h = canvas.size
+                draw.line((0, baseline, canvas_w, baseline), fill=(0, 255, 0), width=1)
+            
+            for ch in line:
+                glyph_data = self.glyphs.get(ch)
+                if not glyph_data:
+                    QMessageBox.warning(None, "Character Not Found", f"Character '{ch}' not found in glyph data.")
+                    ch = '？'  # 替换为问号显示
+                    glyph_data = self.glyphs.get(ch)
+                
+                # 从字形数据获取参数
+                x = glyph_data.get("x", 0)
+                y = glyph_data.get("y", 0)
+                offsetx = glyph_data.get("offsetx", 0)
+                offsety = glyph_data.get("offsety", 0)
+                sizex = glyph_data.get("sizex", 0)
+                sizey = glyph_data.get("sizey", 0)
+                advancex = glyph_data.get("advancex", 0)
+                
+                # 从字体图集中裁剪字形图像
+                glyph_image = self.font_image.crop((
+                    x,
+                    y,
+                    x + sizex,
+                    y + sizey
+                ))
+                # 用 alpha 直接生成黑色字形图像
+                alpha = glyph_image.getchannel("A")
+                glyph_image = Image.new("RGBA", glyph_image.size, (0, 0, 0, 0))
+                glyph_image.putalpha(alpha)
+                
+                
+                # 计算绘制位置
+                draw_x = int(pen_x + offsetx / SCALE_FIX)
+                draw_y = int(baseline - offsety / SCALE_FIX)
+                
+                # 粘贴字形图像到画布, 如果是 RGBA 图像则使用 alpha 通道作为掩码
+                canvas.paste(
+                    glyph_image,
+                    (draw_x, draw_y),
+                    glyph_image if glyph_image.mode == "RGBA" else None
+                )
+                # 调试边框
+                if self.show_border_checkbox.isChecked():
+                    draw.rectangle(
+                        [draw_x, draw_y, draw_x + sizex, draw_y + sizey],
+                        outline=(255, 0, 0)
+                    )
+                # 步进
+                pen_x += advancex / SCALE_FIX
+                
+            baseline += LINE_SPACING # 每行增加基线间距
+            
+        self.display_image(image_meta={}, image=canvas)
+        self.statusbar.showMessage("Font preview rendered.")
+        
+        
+    
+    def on_item_changed(self, item, column):
+        if column != 1:
+            return
+        if getattr(self, "tree_mode", None) != "font":
+            return
+        parent = item.parent()
+        if parent is None:
+            return
+        # 直接取 index 和 key
+        idx = parent.data(0, Qt.UserRole)
+        key = item.data(0, Qt.UserRole)
+        if idx is None or key is None:
+            return
+        text = item.text(1)
+        try:
+            value = int(text)
+        except ValueError:
+            return
+        self.glyphs[parent.text(0)][key] = value # 更新字形数据
+        # 直接修改原数据
+        self.nfh_json[idx][key] = value
+        modify_nfh_item(self.nfh_file_data, self.nfh_json[idx]["blockOffset"], key, value)
+        self.render_font_preview()
+
+        
+
 
     def handle_convert_scb(self):
         """处理主菜单 Convert SCB点击事件"""    
@@ -1564,19 +1812,21 @@ class AppController(QMainWindow):
         else:
             self.preview_label.setText("Failed to load image. pixmap is null.")
             
-    def display_image(self, image_meta):
+    def display_image(self, image_meta, image=None):
 
-        offset = image_meta["offset"]
-        size = image_meta ["size"]
-        image_data = self.fileoperations.opened_file["data"][offset:offset+size]
-        image = None
-        
-        try:
-            image = Image.open(io.BytesIO(image_data))
+        if image is None:
+            offset = image_meta["offset"]
+            size = image_meta ["size"]
+            image_data = self.fileoperations.opened_file["data"][offset:offset+size]
+            try:
+                image = Image.open(io.BytesIO(image_data))
+                width, height = image.size
+            except Exception as e:
+                self.preview_label.setText(f"Failed to load image: {str(e)}")
+                return
+        else:
             width, height = image.size
-        except Exception as e:
-            self.preview_label.setText(f"Failed to load image: {str(e)}")
-            return
+        
         mode = image.mode
         if mode == 'RGB':
             image = image.convert('RGBA')

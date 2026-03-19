@@ -50,6 +50,97 @@
           </widget>
         </item>
         <item>
+          <widget class="QWidget" name="nfh_tools_widget">
+            <property name="sizePolicy">
+              <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+              </sizepolicy>
+            </property>
+            <layout class="QHBoxLayout" name="nfh_tools_layout">
+              <!-- 字体边框显示勾选框-->
+              <item>
+                <widget class="QCheckBox" name="show_border_checkbox">
+                  <property name="font">
+                    <font>
+                      <family>Microsoft YaHei UI</family>
+                      <pointsize>10</pointsize>
+                    </font>
+                  </property>
+                  <property name="text">
+                    <string>Show Border</string>
+                  </property>
+                </widget>
+              </item>
+              <!-- 搜索框 -->
+              <item>
+                <widget class="QLineEdit" name="nfh_char_search_bar">
+                  <property name="placeholderText">
+                    <string>Search Char...</string>
+                  </property>
+                  <property name="sizePolicy">
+                    <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                      <horstretch>0</horstretch>
+                      <verstretch>0</verstretch>
+                    </sizepolicy>
+                  </property>
+                </widget>
+              </item>
+              <!-- 🔍 按钮 -->
+              <item>
+                <widget class="QPushButton" name="nfh_char_search_button">
+                  <property name="text">
+                    <string>🔍</string>
+                  </property>
+                  <property name="maximumWidth">
+                    <number>75</number>
+                  </property>
+                </widget>
+              </item>
+              <!-- 水平伸缩占位 -->
+              <item>
+                <spacer name="horizontalSpacer">
+                  <property name="orientation">
+                    <enum>Qt::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint">
+                    <size>
+                      <width>60</width>
+                      <height>5</height>
+                    </size>
+                  </property>
+                </spacer>
+              </item>
+              <!-- 输入框 -->
+              <item>
+                <widget class="QTextEdit" name="nfh_char_input_bar">
+                  <property name="text">
+                    <string>「你好，如月千早！我是AaronP；从今以后我就是你
+的制作人了。请多多指教」</string>
+                  </property>
+                  <property name="maximumWidth">
+                    <number>800</number>
+                  </property>
+                  <property name="minimumWidth">
+                    <number>465</number>
+                  </property>
+                  <property name="maximumHeight">
+                    <number>60</number>
+                  </property>
+                </widget>
+              </item>
+              <!-- Render 按钮 -->
+              <item>
+                <widget class="QPushButton" name="nfh_char_render_button">
+                  <property name="text">
+                    <string>Render</string>
+                  </property>
+                </widget>
+              </item>
+            </layout>
+          </widget>
+        </item>
+        <item>
           <widget class="QSplitter" name="splitter">
             <property name="orientation">
               <enum>Qt::Horizontal</enum>
@@ -60,7 +151,7 @@
               </property>
               <column>
                 <property name="text">
-                  <string>Folder Structure</string>
+                  <string>File Structure</string>
                 </property>
               </column>
             </widget>
@@ -125,6 +216,7 @@
           <addaction name="actionOpen_mpc" />
           <addaction name="actionOpen_tsk" />
           <addaction name="actionOpen_nut" />
+          <addaction name="actionOpen_font" />
         </widget>
         <addaction name="menuOpen" />
         <addaction name="actionSave_as" />
@@ -181,6 +273,11 @@
     <action name="actionOpen_nut">
       <property name="text">
         <string>Open NUT</string>
+      </property>
+    </action>
+    <action name="actionOpen_font">
+      <property name="text">
+        <string>Open Font</string>
       </property>
     </action>
     <action name="actionConvert">

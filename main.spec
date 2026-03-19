@@ -15,7 +15,7 @@ a = Analysis(
     hooksconfig={},
     runtime_hooks=[],
     excludes=[],
-    noarchive=True,
+    noarchive=False,
 )
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
@@ -40,7 +40,6 @@ coll = COLLECT(
     a.binaries,
     a.datas,
     a.zipfiles,
-    a.datas,
     strip=False,
     upx=False,
     upx_exclude=[],
