@@ -910,6 +910,8 @@ class AppController(QMainWindow):
 
     # --- 右键菜单相关方法 ---
     def show_context_menu(self, point: QPoint):
+        if getattr(self, "tree_mode", None) != "folder":
+            return
         """在 treeWidget 的指定位置 point 显示右键菜单"""
         item = self.treeWidget.itemAt(point)
         if item:
