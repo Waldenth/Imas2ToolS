@@ -9,7 +9,7 @@ Tool set for idolm@ster2 ps3 ver. chinese translation group.
 
 ### File Introduction in Imas2
 
-- [ ] `mpc`:  The imas2 archive package file format.  include `xmb`, `tsk`, `scb` and `nut`files
+- [ ] `mpc`:  The imas2 archive package file format, include `xmb`, `tsk`, `scb` and `nut`files
   - [x] preview
   - [x] unpack
   - [x] repack 
