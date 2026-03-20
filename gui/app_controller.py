@@ -10,7 +10,6 @@ from PyQt5 import uic
 from PyQt5.QtCore import Qt, QPoint
 from core.file_operations import FileOperations # 导入核心逻辑
 from PyQt5.QtGui import QIcon
-from PyQt5.QtCore import QEvent
 from PyQt5.QtGui import QBrush
 from PIL import Image, ImageDraw
 from gui.scalable_label import ScalableLabel # 导入自定义控件
@@ -19,11 +18,8 @@ from core.nuttool import *
 from core.imagetool import *
 from core.tsktool import *
 from core.xmbtool import *
-from io import BytesIO
 from PyQt5.QtCore import QTimer
 from core.scb_file_formats import scb
-from core.scb_file_formats import msg
-from core.scb_file_formats import scb0
 from core.scbtool import *
 from core.workers.task_worker import TaskRunner
 from core.services.dds_converter import convert_png_to_dds_task

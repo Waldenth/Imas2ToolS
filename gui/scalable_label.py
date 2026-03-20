@@ -1,9 +1,8 @@
 # gui/scalable_label.py
 
-from PyQt5.QtWidgets import QLabel, QSizePolicy, QScrollArea
-from PyQt5.QtCore import Qt, QSize
-from PyQt5.QtGui import QPixmap, QImage
-from PyQt5.QtCore import Qt, QSize, QPoint
+from PyQt5.QtWidgets import QLabel, QSizePolicy
+from PyQt5.QtGui import QPixmap
+from PyQt5.QtCore import Qt, QPoint
 
 class ScalableLabel(QLabel):
     def __init__(self, parent=None):

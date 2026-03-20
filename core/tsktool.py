@@ -1,7 +1,6 @@
 # core/tsktool.py
 
 import io
-import struct
 import pathlib
 from core.readtool import *
 from core.file_operations import *
