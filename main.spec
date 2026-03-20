@@ -1,4 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
+from PyInstaller.utils.hooks import copy_metadata
+# import os
+# os.system("pyuic5 -o temp/mainwindow.py mainwindow.ui")
 
 block_cipher = None
 
@@ -9,7 +12,7 @@ a = Analysis(
     datas=[
         ('mainwindow.ui', '.'),            # UI 文件放在同级目录
         ('resources/*', 'resources'),      # 整个 resources 目录
-    ],
+    ]+ copy_metadata('imageio'),
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

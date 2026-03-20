@@ -59,6 +59,17 @@ class AppController(QMainWindow):
 
     def load_ui(self):
         """加载 mainwindow.ui 界面文件"""
+        """
+        if getattr(sys, 'frozen', False):
+            # 打包环境
+            from temp.mainwindow import Ui_MainWindow
+            ui = Ui_MainWindow()
+            ui.setupUi(self)
+            for name, obj in ui.__dict__.items():
+                setattr(self, name, obj)
+            return
+        """
+             
         ui_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "mainwindow.ui")
         if os.path.exists(ui_path):
             uic.loadUi(ui_path, self)
