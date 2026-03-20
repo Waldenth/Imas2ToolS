@@ -2,14 +2,14 @@
 
 Tool set for idolm@ster2 ps3 ver. chinese translation group.
 
-![Preview_1](https://gitee.com/waldenth/chihaya-image/raw/master/images/imas2tools1.jpg)
+![Preview_1](https://picui.ogmua.cn/s1/2026/03/20/69bd58301e4ca.webp)
 
-![Preview_2](https://gitee.com/waldenth/chihaya-image/raw/master/images/imas2tools2.jpg)
+![Preview_2](https://picui.ogmua.cn/s1/2026/03/20/69bd583053b7e.webp)
 
 
 ### File Introduction in Imas2
 
-- [ ] `mpc`:  The imas2 archive package file format.  include `xmb`, `tsk`, `scb` and `nut  `files
+- [ ] `mpc`:  The imas2 archive package file format.  include `xmb`, `tsk`, `scb` and `nut`files
   - [x] preview
   - [x] unpack
   - [x] repack 
