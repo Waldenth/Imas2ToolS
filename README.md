@@ -1,8 +1,11 @@
 ## Imas2ToolS
 
-Tool set for idolm@ster2 ps3 ver translation.
+Tool set for idolm@ster2 ps3 ver. chinese translation group.
 
-![Preview](https://s2.loli.net/2025/12/06/BmdstciHgLz7Tfx.jpg)
+![Preview_1](https://gitee.com/waldenth/chihaya-image/raw/master/images/imas2tools1.jpg)
+
+![Preview_2](https://gitee.com/waldenth/chihaya-image/raw/master/images/imas2tools2.jpg)
+
 
 ### File Introduction in Imas2
 
@@ -15,6 +18,8 @@ Tool set for idolm@ster2 ps3 ver translation.
   - [x] modify text
 
 - [ ] `xmb`: The imas2 system information file (mail, system info, picture position info,  etc.) can be repacked simply by overwriting the Japanese text at the corresponding offsets with the translated text, and filling the remaining unused bytes with zeros.
+  - [x] preview xml
+  - [x] export text json
   - [x] rewrite
   - [x] replace
   - [ ] rebuild
@@ -30,9 +35,15 @@ Tool set for idolm@ster2 ps3 ver translation.
   - [x] unpack
   - [x] replace
   - [ ] repack
-- [ ] `nfh`：The imas2 font image meta data, describe each kanji position, offset and size
-  - [x] rewrite
+
+- [ ] `nfh`: The imas2 font image meta data, describe each kanji position, offset and size
+  - [x] preview and render font text
+  - [x] modify item 
+  - [x] rewrite and generate Hanzi remap dictionary
   - [ ] rebuild
+
+- [ ] `dds`: Image format used primarily to store, compress, and render 3D textures in video games and real-time simulations
+  - [x] Convert (Windows)
 
 ### How to use
 
