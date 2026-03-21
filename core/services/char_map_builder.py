@@ -16,6 +16,7 @@ def remap_chars_task(progress, folder_path, existing_char_map = {}, original_cha
         ['','','','','','','','','','','','','','','', \
          '歩','槻','覇','響','玲','県','茨','栃','岐','阜','広','札','幌','潟','沢']
     )
+    escape_char_set.add('韈') # replace 'Pr'
         
     used_char_set = set(existing_char_map.values())
 

@@ -542,6 +542,7 @@ class AppController(QMainWindow):
             baseline += LINE_SPACING # 每行增加基线间距
             
         self.display_image(image_meta={}, image=canvas)
+        # canvas.save(os.path.join(self.resources_path, "font_preview.png")) # 保存预览图到资源目录，方便调试查看
         self.statusbar.showMessage("Font preview rendered.")
         
         

@@ -54,6 +54,10 @@ def build_font(nfh_data = bytearray(),  fontdatas = {} , original_font_image = N
     if ttf_path is None:
         raise ValueError("ttf_path cannot be None")
     
+    replace_image_path = os.path.join(os.path.dirname(ttf_path), "Pr.png")
+    if not os.path.isfile(replace_image_path):
+        raise FileNotFoundError(f"Replace 'Pr' image not found at path: {replace_image_path}")
+    
     need_replace_char_set = set(replace_char_map.keys())
     
     font = ImageFont.truetype(ttf_path, char_size)
@@ -65,7 +69,7 @@ def build_font(nfh_data = bytearray(),  fontdatas = {} , original_font_image = N
     new_font_offsetX = 0x40
     new_font_offsetY = 0x600
     
-    cur_size = 24  # 字体 24 x 24
+    cur_size = 24
     
     cur_nfh_offset = nfh_offset
     
@@ -146,7 +150,7 @@ def build_font(nfh_data = bytearray(),  fontdatas = {} , original_font_image = N
             max_y_in_cur_row = max(max_y_in_cur_row, cur_size)   
                 
         # 不用替换的字符，且原本有字模
-        elif fontsizex >0 and fontsizey > 0:
+        elif fontsizex >0 and fontsizey > 0:            
             # 是汉字，用新字体绘制，更新nfh数据
             if is_chinese_char(fontchar):
                 drawchar = fontchar
@@ -156,8 +160,13 @@ def build_font(nfh_data = bytearray(),  fontdatas = {} , original_font_image = N
                     current_y += max_y_in_cur_row
                     current_y += 2
                     max_y_in_cur_row = cur_size
-              
-                draw.text((current_x, current_y-3), drawchar, font=font, fill=fontColor)
+                if fontchar == '韈':    # Pr->韈 进行替换
+                    font_image = Image.open(replace_image_path).convert("RGBA")
+                    if font_image is None:
+                        raise RuntimeError(f"Failed to load replace 'Pr' image from path: {replace_image_path}")
+                    canvas.paste(font_image, (current_x, current_y-3), font_image)
+                else:  
+                    draw.text((current_x, current_y-3), drawchar, font=font, fill=fontColor)
                 
 
                 modify_nfh_data(nfh_data, cur_nfh_offset, current_x, current_y, cur_size+1, cur_size+1, new_font_offsetX, new_font_offsetY)
