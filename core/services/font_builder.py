@@ -181,15 +181,21 @@ def build_font(nfh_data = bytearray(),  fontdatas = {} , original_font_image = N
                     current_y += max_y_in_cur_row
                     current_y += 2
                     max_y_in_cur_row = fontsizey
-
-                canvas.paste(crop_and_save_image(original_font_image, \
-                    fontposx, fontposy, fontsizex, fontsizey), \
-                    (current_x, current_y))
-                modify_nfh_data(nfh_data, cur_nfh_offset, current_x, current_y, fontsizex, fontsizey, fontoffsetx, fontoffsety)
+                if fontchar in ('，','；','！','？'): 
+                    draw.text((current_x, current_y-3), fontchar, font=font, fill=fontColor)
+                    modify_nfh_data(nfh_data, cur_nfh_offset, current_x, current_y, cur_size+1, cur_size+1, new_font_offsetX, new_font_offsetY)
+                    current_x += cur_size
+                    current_x +=2
+                    max_y_in_cur_row = max(max_y_in_cur_row, cur_size)
                 
-                current_x += fontsizex
-                current_x +=2
-                max_y_in_cur_row = max(max_y_in_cur_row, fontsizey)
+                else:
+                    canvas.paste(crop_and_save_image(original_font_image, \
+                        fontposx, fontposy, fontsizex, fontsizey), \
+                        (current_x, current_y))
+                    modify_nfh_data(nfh_data, cur_nfh_offset, current_x, current_y, fontsizex, fontsizey, fontoffsetx, fontoffsety)
+                    current_x += fontsizex
+                    current_x +=2
+                    max_y_in_cur_row = max(max_y_in_cur_row, fontsizey)
         
         if current_y > canvas_height:
             raise RuntimeError(f"Canvas height is not enough to fit all characters.\nCharacter: {fontchar}, current_x: {current_x}, current_y: {current_y}")
