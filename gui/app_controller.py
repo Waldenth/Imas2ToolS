@@ -1118,12 +1118,32 @@ class AppController(QMainWindow):
             if replaced_file_path.endswith(".dds"):
                 need_refresh = True
                 replace_file = replace_file[128:]  # 去掉 DDS 头部，保留原始纹理数据
-                    
+                
             if item_meta.get('size', 0) != len(replace_file):
-                QMessageBox.warning(None, "Error", "The size of the replacement file does not match the original file.")
-                return
-            
-            success = self.fileoperations.replace_file_logic(item_meta, replace_file)
+                mpc_file_meta = self.treeWidget.topLevelItem(0).data(0, Qt.UserRole)
+                if mpc_file_meta.get('type') == 'file_mpc':
+                    reply = QMessageBox.question(None, "Size Mismatch", "The size of the replacement file does not match the original file, can't replace.\nDo you want to repack the MPC file?", QMessageBox.Yes | QMessageBox.No)
+                    if reply == QMessageBox.No:
+                        QMessageBox.warning(None, "Error", "The size of the replacement file does not match the original file.")
+                        return
+                    else:
+                        root_name = mpc_file_meta.get('name', 'unknown.mpc')
+                        try:
+                            new_mpc_file_data = repack_mpc(self.fileoperations.opened_file['data'], mpc_file_meta, item_meta, replace_file)
+                        except Exception as e:
+                            QMessageBox.warning(None, "Error", f"Failed to repack MPC file: {str(e)}")
+                            return
+                        self.fileoperations.opened_file['data'] = new_mpc_file_data
+                        self.mpc_file_info = load_mpc_beta(new_mpc_file_data, root_name)
+                        loaded_info = self.mpc_file_info
+                        self.update_folder_structure(root_name, "mpc", loaded_info)
+                        self.statusbar.showMessage(f"Repack successful for MPC: {root_name}, replaced {item_meta.get('name')}, view refreshed.")
+                        return
+                else:
+                    QMessageBox.warning(None, "Error", "The size of the replacement file does not match the original file.")
+                    return
+            else:
+                success = self.fileoperations.replace_file_logic(item_meta, replace_file)
         
         if success:
             self.statusbar.showMessage(f"Replace successful for: {item_meta.get('name')}")
@@ -1402,119 +1422,119 @@ class AppController(QMainWindow):
 
 
     def handle_import_from_directory(self):
-            """处理 Tools > Import from directory 点击事件（异步）"""
-            if not self.fileoperations.opened_file.get('data'):
-                QMessageBox.warning(self, "Warning", "No file is currently open.")
-                return
+        """处理 Tools > Import from directory 点击事件（异步）"""
+        if not self.fileoperations.opened_file.get('data'):
+            QMessageBox.warning(self, "Warning", "No file is currently open.")
+            return
+    
+        item_meta = self.treeWidget.topLevelItem(0).data(0, Qt.UserRole)
         
-            item_meta = self.treeWidget.topLevelItem(0).data(0, Qt.UserRole)
+        imported_file_name = item_meta.get('name')
+        
+        directory = QFileDialog.getExistingDirectory(
+            self, 
+            "Select a directory to import files from",
+            ""
+        )
+        
+        if not directory:
+            return
+        
+        try:
+            imported_file_dict = {}
+            isRecursive = False
             
-            imported_file_name = item_meta.get('name')
-            
-            directory = QFileDialog.getExistingDirectory(
-                self, 
-                "Select a directory to import files from",
-                ""
-            )
-            
-            if not directory:
+            if os.path.exists(os.path.join(directory, f"{imported_file_name}.json")):
+                imported_file_dict = FileOperations.load_json_from_file(
+                    os.path.join(directory, f"{imported_file_name}.json")
+                )
+                isRecursive = True
+            elif os.path.exists(os.path.join(directory, f"{imported_file_name}_images.json")):
+                imported_file_dict = FileOperations.load_json_from_file(
+                    os.path.join(directory, f"{imported_file_name}_images.json")
+                )
+            else:
+                QMessageBox.warning(self, "Error", f"No import JSON file found for {imported_file_name} in the selected directory.")
                 return
             
-            try:
-                imported_file_dict = {}
-                isRecursive = False
-                
-                if os.path.exists(os.path.join(directory, f"{imported_file_name}.json")):
-                    imported_file_dict = FileOperations.load_json_from_file(
-                        os.path.join(directory, f"{imported_file_name}.json")
-                    )
-                    isRecursive = True
-                elif os.path.exists(os.path.join(directory, f"{imported_file_name}_images.json")):
-                    imported_file_dict = FileOperations.load_json_from_file(
-                        os.path.join(directory, f"{imported_file_name}_images.json")
-                    )
-                else:
-                    QMessageBox.warning(self, "Error", f"No import JSON file found for {imported_file_name} in the selected directory.")
+            if imported_file_dict.get('parent_file') != item_meta.get('name'):
+                QMessageBox.warning(self, "Error", f"Import JSON parent file does not match the opened file.")
+                return
+            
+            # 初始化异步导入队列和计数
+            self._import_queue = list(imported_file_dict.get('file_list', []))
+            self._import_directory = directory
+            self._import_count = 0
+            self._import_total = len(self._import_queue)
+            self._import_isRecursive = isRecursive
+            
+            if self._import_total == 0:
+                self.statusbar.showMessage("No files to import.")
+                return
+            
+            def process_next():
+                if not self._import_queue:
+                    self.statusbar.showMessage(f"Import completed. Total {self._import_count} files imported.")
                     return
                 
-                if imported_file_dict.get('parent_file') != item_meta.get('name'):
-                    QMessageBox.warning(self, "Error", f"Import JSON parent file does not match the opened file.")
+                file_info = self._import_queue.pop(0)
+                file_path = file_info.get('name')
+                file_offset = file_info.get('offset')
+                file_size = file_info.get('size')
+                
+                if file_size == 0:
+                    QTimer.singleShot(10, process_next)
                     return
                 
-                # 初始化异步导入队列和计数
-                self._import_queue = list(imported_file_dict.get('file_list', []))
-                self._import_directory = directory
-                self._import_count = 0
-                self._import_total = len(self._import_queue)
-                self._import_isRecursive = isRecursive
+                if self._import_isRecursive:
+                    file_path = file_info.get('path')
                 
-                if self._import_total == 0:
-                    self.statusbar.showMessage("No files to import.")
-                    return
+                full_file_path = os.path.join(self._import_directory, file_path)
                 
-                def process_next():
-                    if not self._import_queue:
-                        self.statusbar.showMessage(f"Import completed. Total {self._import_count} files imported.")
-                        return
-                    
-                    file_info = self._import_queue.pop(0)
-                    file_path = file_info.get('name')
-                    file_offset = file_info.get('offset')
-                    file_size = file_info.get('size')
-                    
-                    if file_size == 0:
+                try:
+                    if not os.path.exists(full_file_path):
+                        self.statusbar.showMessage(f"Skipped (not found): {file_path}, {len(self._import_queue) + 1}/{self._import_total}")
                         QTimer.singleShot(10, process_next)
                         return
                     
-                    if self._import_isRecursive:
-                        file_path = file_info.get('path')
-                    
-                    full_file_path = os.path.join(self._import_directory, file_path)
-                    
-                    try:
-                        if not os.path.exists(full_file_path):
-                            self.statusbar.showMessage(f"Skipped (not found): {file_path}, {len(self._import_queue) + 1}/{self._import_total}")
-                            QTimer.singleShot(10, process_next)
-                            return
-                        
-                        if file_path.endswith(".dds"):
-                            self.fileoperations.replace_texture_logic(
-                                full_file_path,
+                    if file_path.endswith(".dds"):
+                        self.fileoperations.replace_texture_logic(
+                            full_file_path,
+                            {
+                                'offset': file_offset,
+                                'size': file_size,
+                            }
+                        )
+                    else:
+                        with open(full_file_path, 'rb') as f:
+                            file_data = f.read()
+                            if len(file_data) != file_size:
+                                QMessageBox.warning(self, "Error", f"File size mismatch for {file_path}. Expected {file_size}, got {len(file_data)}.")
+                                QTimer.singleShot(10, process_next)
+                                return
+                            
+                            self.fileoperations.replace_file_logic(
                                 {
                                     'offset': file_offset,
                                     'size': file_size,
-                                }
+                                },
+                                file_data
                             )
-                        else:
-                            with open(full_file_path, 'rb') as f:
-                                file_data = f.read()
-                                if len(file_data) != file_size:
-                                    QMessageBox.warning(self, "Error", f"File size mismatch for {file_path}. Expected {file_size}, got {len(file_data)}.")
-                                    QTimer.singleShot(10, process_next)
-                                    return
-                                
-                                self.fileoperations.replace_file_logic(
-                                    {
-                                        'offset': file_offset,
-                                        'size': file_size,
-                                    },
-                                    file_data
-                                )
-                                
-                        self._import_count += 1
-                        remaining = len(self._import_queue)
-                        self.statusbar.showMessage(f"Imported: {file_path}, {self._import_count}/{self._import_total}")
-                    
-                    except Exception as e:
-                        QMessageBox.warning(self, "Error", f"Failed to import {file_path}: {str(e)}")
-                    
-                    QTimer.singleShot(10, process_next)
+                            
+                    self._import_count += 1
+                    remaining = len(self._import_queue)
+                    self.statusbar.showMessage(f"Imported: {file_path}, {self._import_count}/{self._import_total}")
                 
-                process_next()
+                except Exception as e:
+                    QMessageBox.warning(self, "Error", f"Failed to import {file_path}: {str(e)}")
                 
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"Failed to import: {str(e)}")
-                self.statusbar.showMessage("Import failed.")
+                QTimer.singleShot(10, process_next)
+            
+            process_next()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to import: {str(e)}")
+            self.statusbar.showMessage("Import failed.")
 
 
     def handle_export_all_images(self):

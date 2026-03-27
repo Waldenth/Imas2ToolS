@@ -314,3 +314,83 @@ def load_mpc(data: bytes, mpcfileName="mpc"):
     }
     
     return mpc_info
+
+
+def dfs_iter(node):
+    if node.get('type') == 'folder':
+        for sub in node.get('subItem', []):
+            yield from dfs_iter(sub)
+    else:
+        yield node
+
+
+def repack_mpc(data: bytes, mpc_file_meta: dict = None, mpc_replaced_file_meta: dict = None, replace_file_data: bytes = None):
+    """
+    根据 mpc_info 中的文件信息，重新打包 MPC 文件数据。
+    目前仅支持修改文件内容，不支持添加或删除文件。
+    :param data: 原始 MPC 文件的完整字节数据
+    :param mpc_replaced_file_info: 包含替换文件信息的字典
+    :param mpc_info: 包含子文件信息的字典
+    :param replace_file_data: 替换文件的字节数据
+    :return: 修改后的 MPC 文件字节数据
+    """
+    old_mpc_data = bytearray(data)
+    old_mpc_file_size = mpc_file_meta['size'] # MPC 文件的原始大小的字段，不包含文件头，不能通过len(data)获取
+    mpc_replaced_file_size = mpc_replaced_file_meta['size']
+    replace_file_size = len(replace_file_data)
+    
+    file_idx = None
+    old_replaced_file_offset = mpc_replaced_file_meta['offset']
+    
+    mpc_info = load_mpc(data, mpc_file_meta['name'])
+    for i, file_info in enumerate(mpc_info['subfiles_info']):
+        if file_info['fileoff'] == old_replaced_file_offset and file_info['filesize'] == mpc_replaced_file_size:
+            file_idx = i
+            break
+    
+    if file_idx is None:
+        raise ValueError("File index not found in MPC info.")
+    
+    old_padding = (16 - mpc_replaced_file_size % 16) % 16
+    new_padding = (16 - replace_file_size % 16) % 16
+    
+    delta_size = (replace_file_size + new_padding) - (mpc_replaced_file_size + old_padding)
+    delta_padding = new_padding - old_padding
+    f = io.BytesIO(data)
+    new_mpc_data = bytearray()
+    if delta_size != 0:
+        f.seek(0x04) # 跳过 PAC
+        unk = read_long(f)
+        size = read_long(f)
+        files = read_long(f)
+        f.seek(0x30)
+        infostart = read_long(f)
+        msgstart = read_long(f)
+        datastart = read_long(f)
+        f.seek(0)
+        new_mpc_data.extend(f.read(old_replaced_file_offset))
+        new_mpc_data.extend(replace_file_data)
+        if delta_padding > 0:
+            new_mpc_data.extend(b'\x00' * delta_padding)
+            f.seek(old_replaced_file_offset + mpc_replaced_file_size)
+        else:
+            skip_padding = abs(delta_padding)
+            f.seek(old_replaced_file_offset + mpc_replaced_file_size + skip_padding)
+        new_mpc_data.extend(f.read())
+        
+        entry_offset = infostart + 0x20 * file_idx
+        new_mpc_data[entry_offset+8:entry_offset+12] = replace_file_size.to_bytes(4, byteorder='big')
+        
+        for i in range(file_idx + 1, files):
+            entry_offset = infostart + 0x20 * i
+            old_off = mpc_info["subfiles_info"][i]["fileoff"]
+            new_off = old_off + delta_size
+            new_mpc_data[entry_offset+12:entry_offset+16] = \
+                (new_off - datastart).to_bytes(4, byteorder='big')
+        total_size = old_mpc_file_size + replace_file_size - mpc_replaced_file_size
+        new_mpc_data[8:12] = total_size.to_bytes(4, byteorder='big')
+    else:
+        raise ValueError("The size of the replacement file must be different from the original file for repacking.")
+    
+    return bytes(new_mpc_data)
+            
