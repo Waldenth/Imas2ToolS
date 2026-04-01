@@ -2,9 +2,9 @@
 
 Tool set for idolm@ster2 ps3 ver. chinese translation group.
 
-![Preview_1](https://picui.ogmua.cn/s1/2026/03/20/69bd583053b7e.webp)
+![Preview_1](https://gitee.com/waldenth/chihaya-image/raw/master/images/imas2tools1.jpg)
 
-![Preview_2](https://picui.ogmua.cn/s1/2026/03/20/69bd58301e4ca.webp)
+![Preview_2](https://gitee.com/waldenth/chihaya-image/raw/master/images/imas2tools2.jpg)
 
 
 ### File Introduction in Imas2
@@ -23,7 +23,7 @@ Tool set for idolm@ster2 ps3 ver. chinese translation group.
   - [x] rewrite
   - [x] replace
   - [ ] rebuild
-    ![preiview_xmb](https://picui.ogmua.cn/s1/2026/03/20/69bd62aec4222.webp)
+    ![preiview_xmb](https://gitee.com/waldenth/chihaya-image/raw/master/images/xml.jpg)
 
 - [ ] `tsk`: The imas2 image and icon package file format. include `tsk` and `nut` files,  we can repack it by just rewrite offset data
   - [x] preview
@@ -45,7 +45,7 @@ Tool set for idolm@ster2 ps3 ver. chinese translation group.
 
 - [ ] `dds`: Image format used primarily to store, compress, and render 3D textures in video games and real-time simulations
   - [x] Convert (Windows)
-    ![Tools](https://picui.ogmua.cn/s1/2026/03/20/69bd61d6c6adb.webp)
+    ![Tools](https://gitee.com/waldenth/chihaya-image/raw/master/images/tools.webp)
 ### How to use
 
 - python >= 3.7
