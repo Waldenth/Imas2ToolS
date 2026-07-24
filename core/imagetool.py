@@ -3,7 +3,6 @@ import struct
 import dds
 from PIL import Image
 import numpy as np
-import imageio
 import io
 from io import BytesIO
 
