@@ -241,7 +241,7 @@ class AppController(QMainWindow):
             # 定义文件过滤器字典
             filters = {
                 "mpc": "MPC Files (*.mpc)",
-                "tsk": "TSK/S2D/MOT Files (*.tsk *.s2d *.mot)",
+                "tsk": "TSK/S2D/MOT/PAC Files (*.tsk *.s2d *.mot *.pac)",
                 "nut": "NUT Files (*.nut)"
             }
             
@@ -277,6 +277,8 @@ class AppController(QMainWindow):
                     file_type = 's2d'
                 if root_name.endswith('.mot'):
                     file_type = 'mot'
+                if root_name.endswith('.pac'):
+                    file_type = 'pac'
                 
                 loaded_info = None
                 
@@ -300,6 +302,10 @@ class AppController(QMainWindow):
                 elif file_type == 'mot':
                     self.tsk_file_info = load_tsk_beta(file_data, root_name.split('.')[0])
                     self.tsk_file_info['name'] = root_name.split('.')[0] + '.mot'
+                    loaded_info = self.tsk_file_info
+                elif file_type == 'pac':
+                    self.tsk_file_info = load_tsk_beta(file_data, root_name.split('.')[0])
+                    self.tsk_file_info['name'] = root_name.split('.')[0] + '.pac'
                     loaded_info = self.tsk_file_info
                     
                 elif file_type == 'nut':

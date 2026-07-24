@@ -12,6 +12,7 @@ if __name__ == "__main__":
             or try_open_file.lower().endswith('.nut') \
             or try_open_file.lower().endswith('.tsk') \
             or try_open_file.lower().endswith('.mot') \
+            or try_open_file.lower().endswith('.pac') \
             or try_open_file.lower().endswith('.s2d'):
             open_file_path = try_open_file
 
