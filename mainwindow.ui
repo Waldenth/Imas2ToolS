@@ -246,6 +246,7 @@
         <addaction name="actionImport_from_directory" />
         <addaction name="actionExport_all_images" />
         <addaction name="actionExport_all_xmbs" />
+        <addaction name="actionInject_eboot" />
       </widget>
       <widget class="QMenu" name="menuFont">
         <property name="title">
@@ -323,6 +324,11 @@
         <action name="actionExport_all_xmbs">
       <property name="text">
         <string>Export all XMBs</string>
+      </property>
+    </action>
+    <action name="actionInject_eboot">
+      <property name="text">
+        <string>Inject EBOOT</string>
       </property>
     </action>
     <action name="actionCreateSCB">

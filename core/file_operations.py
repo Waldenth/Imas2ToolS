@@ -158,3 +158,37 @@ class FileOperations:
         except Exception as e:
             raise ValueError(f"Error during XMB rewrite: {str(e)}\n")
         return xmb_data
+    
+    def rewrite_eboot_logic(self, eboot_data: bytearray, json_data: dict, char_map: dict, use_dict = True):
+        """重写 EBOOT 文件逻辑"""
+        try:
+            for item in json_data:
+                offset = item["_offset"]
+                # 如果 translate 字段为 None，则使用 _text 原文，否则使用 translate 字段内容进行转换
+                if "translate" not in item:
+                    text = item["_text"]
+                else:
+                    text = item["translate"]
+
+                size = item["_size"]
+                convertText = ""
+                
+                for char in text:
+                    if use_dict:
+                        if char in char_map:
+                            convertText += char_map[char]
+                        else:
+                            convertText += char
+                    else:
+                        convertText += char
+                utf16be_text = convertText.encode('utf-16be')
+                text_size = len(utf16be_text)
+                if text_size > size:
+                    raise ValueError(f"Rewritten text size exceeds original size at offset {offset}. Original size: {size}, New size: {text_size}, Text: {text}")
+                
+                padding = b'\x00' * (size - text_size)
+                eboot_data[offset:offset+size] = utf16be_text + padding
+        except Exception as e:
+            raise ValueError(f"Error during EBOOT rewrite: {str(e)}\n")
+        return eboot_data
+        

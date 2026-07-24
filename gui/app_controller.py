@@ -174,6 +174,7 @@ class AppController(QMainWindow):
         self.actionImport_from_directory.triggered.connect(self.handle_import_from_directory)
         self.actionExport_all_images.triggered.connect(self.handle_export_all_images)
         self.actionExport_all_xmbs.triggered.connect(self.handle_export_all_xmbs)
+        self.actionInject_eboot.triggered.connect(self.handle_inject_eboot)
 
         # 设置文件树的右键菜单
         self.treeWidget.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -1780,6 +1781,31 @@ class AppController(QMainWindow):
         
         process_next()
     
+    def handle_inject_eboot(self):
+        #print("Inject EBOOT functionality is not implemented yet.")
+        #pass
+        json_file_path, _ = QFileDialog.getOpenFileName(
+            None, "Select JSON file to inject", "", "JSON Files (*.json)"
+        )
+        if not json_file_path:
+            return None
+        eboot_path = os.path.join(self.resources_path, "EBOOT.BIN")
+        eboot_data = None
+        with open(eboot_path, "rb") as f:
+            eboot_data = f.read()
+            eboot_data = bytearray(eboot_data)
+        json_data = FileOperations.load_json_from_file(json_file_path)
+        rewrite_eboot_data = self.fileoperations.rewrite_eboot_logic(eboot_data, json_data, self.charMap['import'])
+        
+        output_dir = os.path.dirname(json_file_path)
+        output_eboot_path = os.path.join(output_dir, "EBOOT_injected.BIN")
+        with open(output_eboot_path, "wb") as f:
+            f.write(rewrite_eboot_data)
+        self.statusbar.showMessage(f"Injected EBOOT saved to: {output_eboot_path}") 
+        reply = QMessageBox.question(self, "Inject EBOOT", f"Injected EBOOT saved to: {output_eboot_path}\n\nDo you want to open the output directory?", QMessageBox.Yes | QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            subprocess.Popen(["explorer", os.path.abspath(output_dir)])
+
     
     
     def display_texture(self, image_meta):
